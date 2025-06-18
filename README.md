@@ -2,6 +2,20 @@
 
 A command-line tool for generating synthetic host metrics and sending them to Elasticsearch in both OpenTelemetry and Elastic Metricbeat formats.
 
+## AI Coding Experiment
+
+**Note**: This project was developed as an experiment to evaluate AI coding tools, specifically [Claude Code](https://claude.ai/code). The goal was to create a complete, production-ready tool without writing a single line of code manually - instead relying entirely on AI guidance and code generation.
+
+The experiment successfully demonstrates that AI coding assistants can:
+- Understand complex technical requirements and specifications
+- Generate comprehensive TypeScript applications with proper architecture
+- Implement industry-standard protocols (OpenTelemetry, Elasticsearch APIs)
+- Create realistic data simulation with proper statistical distributions
+- Handle error cases, logging, and production concerns
+- Produce well-documented, maintainable code
+
+This serves as a proof-of-concept for AI-assisted software development workflows and the potential for natural language programming.
+
 ## Overview
 
 Simian Forge simulates realistic host metrics including CPU, memory, network, disk I/O, filesystem, and process statistics. It supports generating data in OpenTelemetry format and/or Elastic Metricbeat format, making it ideal for testing monitoring systems, dashboards, and alerting rules.
