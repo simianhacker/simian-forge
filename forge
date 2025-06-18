@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Simian Forge wrapper script
+# Runs npm run start with all passed arguments
+
+npm run start -- "$@"
