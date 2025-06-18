@@ -141,15 +141,15 @@ export class ElasticFormatter extends BaseFormatter {
                 }
               },
               iowait: {
-                pct: hostMetrics.cpu.usage.iowait / 100,
+                pct: hostMetrics.cpu.usage.wait / 100,
                 norm: {
-                  pct: (hostMetrics.cpu.usage.iowait / 100) / hostMetrics.cpu.count
+                  pct: (hostMetrics.cpu.usage.wait / 100) / hostMetrics.cpu.count
                 }
               },
               irq: {
-                pct: hostMetrics.cpu.usage.irq / 100,
+                pct: hostMetrics.cpu.usage.interrupt / 100,
                 norm: {
-                  pct: (hostMetrics.cpu.usage.irq / 100) / hostMetrics.cpu.count
+                  pct: (hostMetrics.cpu.usage.interrupt / 100) / hostMetrics.cpu.count
                 }
               },
               softirq: {

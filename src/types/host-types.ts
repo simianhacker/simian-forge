@@ -53,11 +53,10 @@ export interface CpuMetrics {
     nice: number;
     system: number;
     idle: number;
-    iowait: number;
-    irq: number;
+    wait: number;
+    interrupt: number;
     softirq: number;
     steal: number;
-    guest: number;
   };
   perCoreUsage: Array<{
     core: number;
@@ -65,11 +64,10 @@ export interface CpuMetrics {
     nice: number;
     system: number;
     idle: number;
-    iowait: number;
-    irq: number;
+    wait: number;
+    interrupt: number;
     softirq: number;
     steal: number;
-    guest: number;
   }>;
   count: number;
 }

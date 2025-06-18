@@ -71,11 +71,10 @@ export class MetricsGenerator {
       nice: 0,
       system: 0,
       idle: 0,
-      iowait: 0,
-      irq: 0,
+      wait: 0,
+      interrupt: 0,
       softirq: 0,
-      steal: 0,
-      guest: 0
+      steal: 0
     };
     
     for (let core = 0; core < hostConfig.vcpus; core++) {
@@ -91,8 +90,8 @@ export class MetricsGenerator {
       const user = totalUsed * (0.5 + (coreRandom() - 0.5) * 0.2); // 40-60% of used
       const nice = totalUsed * (0.05 + coreRandom() * 0.05); // 0-10% of used
       const system = totalUsed * (0.2 + (coreRandom() - 0.5) * 0.1); // 15-25% of used
-      const iowait = totalUsed * (0.05 + coreRandom() * 0.05); // 0-10% of used
-      const remaining = totalUsed - user - nice - system - iowait;
+      const wait = totalUsed * (0.05 + coreRandom() * 0.05); // 0-10% of used (iowait -> wait)
+      const remaining = totalUsed - user - nice - system - wait;
       
       const coreUsage = {
         core,
@@ -100,11 +99,10 @@ export class MetricsGenerator {
         nice: Math.max(0, nice),
         system: Math.max(0, system),
         idle: Math.max(0, idle),
-        iowait: Math.max(0, iowait),
-        irq: Math.max(0, remaining * 0.3),
-        softirq: Math.max(0, remaining * 0.3),
-        steal: Math.max(0, remaining * 0.2),
-        guest: Math.max(0, remaining * 0.2)
+        wait: Math.max(0, wait),
+        interrupt: Math.max(0, remaining * 0.4), // irq -> interrupt
+        softirq: Math.max(0, remaining * 0.4),
+        steal: Math.max(0, remaining * 0.2)
       };
       
       perCoreUsage.push(coreUsage);
@@ -114,11 +112,10 @@ export class MetricsGenerator {
       totalAggregateUsage.nice += coreUsage.nice;
       totalAggregateUsage.system += coreUsage.system;
       totalAggregateUsage.idle += coreUsage.idle;
-      totalAggregateUsage.iowait += coreUsage.iowait;
-      totalAggregateUsage.irq += coreUsage.irq;
+      totalAggregateUsage.wait += coreUsage.wait;
+      totalAggregateUsage.interrupt += coreUsage.interrupt;
       totalAggregateUsage.softirq += coreUsage.softirq;
       totalAggregateUsage.steal += coreUsage.steal;
-      totalAggregateUsage.guest += coreUsage.guest;
     }
     
     // Average the aggregated usage across all cores
@@ -127,11 +124,10 @@ export class MetricsGenerator {
       nice: totalAggregateUsage.nice / hostConfig.vcpus,
       system: totalAggregateUsage.system / hostConfig.vcpus,
       idle: totalAggregateUsage.idle / hostConfig.vcpus,
-      iowait: totalAggregateUsage.iowait / hostConfig.vcpus,
-      irq: totalAggregateUsage.irq / hostConfig.vcpus,
+      wait: totalAggregateUsage.wait / hostConfig.vcpus,
+      interrupt: totalAggregateUsage.interrupt / hostConfig.vcpus,
       softirq: totalAggregateUsage.softirq / hostConfig.vcpus,
-      steal: totalAggregateUsage.steal / hostConfig.vcpus,
-      guest: totalAggregateUsage.guest / hostConfig.vcpus
+      steal: totalAggregateUsage.steal / hostConfig.vcpus
     };
 
     // Update cumulative CPU time counters per core

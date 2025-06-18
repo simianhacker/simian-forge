@@ -117,7 +117,7 @@ export class OtelFormatter extends BaseFormatter {
                 resource: baseResource,
                 attributes: { 
                   cpu: coreUsage.core.toString(),
-                  state: state === 'iowait' ? 'wait' : state // Map iowait to wait as per OTel spec
+                  state // States now match OTel spec directly
                 },
                 scope: baseScope,
                 metrics,
