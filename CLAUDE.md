@@ -45,6 +45,41 @@ Requirements:
 - `npm run build` - Compile TypeScript to JavaScript
 - `npm run start` - Run the compiled application
 - `npm run dev` - Build and run the application
+- `npm run test-logger` - Test logger functionality
+
+## Git Workflows
+
+### Making Changes
+1. Make code changes to implement features or fix issues
+2. Build and test: `npm run build && npm run test-logger`
+3. Add files: `git add <files>`
+4. Commit with descriptive message:
+   ```bash
+   git commit -m "$(cat <<'EOF'
+   Brief description of changes
+   
+   - Detailed bullet points of what was changed
+   - Include technical details and reasoning
+   - Mention any breaking changes or compatibility updates
+   
+   🤖 Generated with [Claude Code](https://claude.ai/code)
+   
+   Co-Authored-By: Claude <noreply@anthropic.com>
+   EOF
+   )"
+   ```
+5. Push to GitHub: `git push origin main`
+
+### Commit Message Guidelines
+- Start with imperative verb (Add, Update, Fix, Remove)
+- Include detailed bullet points explaining changes
+- Always include Claude Code attribution footer
+- Use HEREDOC format for multi-line messages to ensure proper formatting
+
+### Branch Management
+- Main branch: `main` - production-ready code
+- All development happens directly on main for this experimental project
+- Each logical feature/fix gets its own commit with detailed message
 
 ## Project Structure
 - `src/` - TypeScript source code
@@ -58,8 +93,14 @@ Requirements:
     - `host-generator.ts` - Host configuration generator
     - `metrics-generator.ts` - Realistic metrics generation
   - `formatters/` - Output format converters
+    - `base-formatter.ts` - Common formatter functionality
     - `otel-formatter.ts` - OpenTelemetry format converter
     - `elastic-formatter.ts` - Elastic Metricbeat format converter
+  - `logger.ts` - Console log shipping to Elasticsearch
 - `dist/` - Compiled JavaScript output
 
 ## Notes
+- CPU states aligned with OpenTelemetry spec: idle, interrupt, nice, softirq, steal, system, user, wait
+- Metricbeat CPU states mapped from OTel: idle, irq, nice, softirq, steal, system, user, iowait, total
+- Log shipping uses dataset `simian_forge.otel` with OpenTelemetry format
+- Memory metrics include all required OTel states: buffered, cached, inactive, free, slab_reclaimable, slab_unreclaimable, used
