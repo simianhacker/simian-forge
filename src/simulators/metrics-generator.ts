@@ -181,11 +181,14 @@ export class MetricsGenerator {
     const usagePercent = 40 + random() * 40;
     const used = Math.floor(totalBytes * (usagePercent / 100));
     
-    // Distribute free memory
+    // Distribute memory across different states
     const available = totalBytes - used;
-    const cached = Math.floor(available * (0.3 + random() * 0.3)); // 30-60% of available
+    const cached = Math.floor(available * (0.25 + random() * 0.25)); // 25-50% of available
     const buffered = Math.floor(available * (0.05 + random() * 0.1)); // 5-15% of available
-    const free = available - cached - buffered;
+    const inactive = Math.floor(available * (0.1 + random() * 0.15)); // 10-25% of available
+    const slab_reclaimable = Math.floor(available * (0.02 + random() * 0.03)); // 2-5% of available
+    const slab_unreclaimable = Math.floor(available * (0.01 + random() * 0.02)); // 1-3% of available
+    const free = available - cached - buffered - inactive - slab_reclaimable - slab_unreclaimable;
     
     return {
       total: totalBytes,
@@ -194,6 +197,9 @@ export class MetricsGenerator {
       free: Math.max(0, free),
       cached,
       buffered,
+      inactive,
+      slab_reclaimable,
+      slab_unreclaimable,
       usagePercent
     };
   }

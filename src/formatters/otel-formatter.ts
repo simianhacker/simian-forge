@@ -184,7 +184,10 @@ export class OtelFormatter extends BaseFormatter {
           used: hostMetrics.memory.used,
           free: hostMetrics.memory.free,
           cached: hostMetrics.memory.cached,
-          buffered: hostMetrics.memory.buffered
+          buffered: hostMetrics.memory.buffered,
+          inactive: hostMetrics.memory.inactive,
+          slab_reclaimable: hostMetrics.memory.slab_reclaimable,
+          slab_unreclaimable: hostMetrics.memory.slab_unreclaimable
         };
 
         Object.entries(memoryStates).forEach(([state, value]) => {
@@ -202,17 +205,30 @@ export class OtelFormatter extends BaseFormatter {
           });
         });
 
-        // Memory utilization
-        const memoryUtilMetrics = { 'system.memory.utilization': hostMetrics.memory.usagePercent / 100 };
-        documents.push({
-          '@timestamp': timestamp,
-          _metric_names_hash: this.generateMetricNamesHash(memoryUtilMetrics),
-          data_stream: baseDataStream,
-          resource: baseResource,
-          scope: baseScope,
-          metrics: memoryUtilMetrics,
-          unit: '1',
-          start_timestamp: timestamp
+        // Memory utilization by state (percentage of total memory)
+        const memoryUtilizationStates = {
+          used: hostMetrics.memory.used / hostMetrics.memory.total,
+          free: hostMetrics.memory.free / hostMetrics.memory.total,
+          cached: hostMetrics.memory.cached / hostMetrics.memory.total,
+          buffered: hostMetrics.memory.buffered / hostMetrics.memory.total,
+          inactive: hostMetrics.memory.inactive / hostMetrics.memory.total,
+          slab_reclaimable: hostMetrics.memory.slab_reclaimable / hostMetrics.memory.total,
+          slab_unreclaimable: hostMetrics.memory.slab_unreclaimable / hostMetrics.memory.total
+        };
+
+        Object.entries(memoryUtilizationStates).forEach(([state, value]) => {
+          const metrics = { 'system.memory.utilization': value };
+          documents.push({
+            '@timestamp': timestamp,
+            _metric_names_hash: this.generateMetricNamesHash(metrics),
+            data_stream: baseDataStream,
+            resource: baseResource,
+            attributes: { state },
+            scope: baseScope,
+            metrics,
+            unit: '1',
+            start_timestamp: timestamp
+          });
         });
 
         // Network metrics

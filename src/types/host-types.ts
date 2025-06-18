@@ -85,6 +85,9 @@ export interface MemoryMetrics {
   free: number;
   cached: number;
   buffered: number;
+  inactive: number;
+  slab_reclaimable: number;
+  slab_unreclaimable: number;
   usagePercent: number;
 }
 
