@@ -122,6 +122,12 @@ export class ElasticFormatter extends BaseFormatter {
                   pct: (hostMetrics.cpu.usage.user / 100) / hostMetrics.cpu.count
                 }
               },
+              nice: {
+                pct: hostMetrics.cpu.usage.nice / 100,
+                norm: {
+                  pct: (hostMetrics.cpu.usage.nice / 100) / hostMetrics.cpu.count
+                }
+              },
               system: {
                 pct: hostMetrics.cpu.usage.system / 100,
                 norm: {
@@ -156,12 +162,6 @@ export class ElasticFormatter extends BaseFormatter {
                 pct: hostMetrics.cpu.usage.steal / 100,
                 norm: {
                   pct: (hostMetrics.cpu.usage.steal / 100) / hostMetrics.cpu.count
-                }
-              },
-              guest: {
-                pct: hostMetrics.cpu.usage.guest / 100,
-                norm: {
-                  pct: (hostMetrics.cpu.usage.guest / 100) / hostMetrics.cpu.count
                 }
               },
               total: {

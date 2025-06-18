@@ -50,6 +50,7 @@ export interface HostMetrics {
 export interface CpuMetrics {
   usage: {
     user: number;
+    nice: number;
     system: number;
     idle: number;
     iowait: number;
@@ -61,6 +62,7 @@ export interface CpuMetrics {
   perCoreUsage: Array<{
     core: number;
     user: number;
+    nice: number;
     system: number;
     idle: number;
     iowait: number;

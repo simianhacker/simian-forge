@@ -68,6 +68,7 @@ export class MetricsGenerator {
     const perCoreUsage = [];
     let totalAggregateUsage = {
       user: 0,
+      nice: 0,
       system: 0,
       idle: 0,
       iowait: 0,
@@ -87,14 +88,16 @@ export class MetricsGenerator {
       const idle = 100 - totalUsed;
       
       // Distribute the used CPU across different states for this core
-      const user = totalUsed * (0.6 + (coreRandom() - 0.5) * 0.2); // 50-70% of used
+      const user = totalUsed * (0.5 + (coreRandom() - 0.5) * 0.2); // 40-60% of used
+      const nice = totalUsed * (0.05 + coreRandom() * 0.05); // 0-10% of used
       const system = totalUsed * (0.2 + (coreRandom() - 0.5) * 0.1); // 15-25% of used
       const iowait = totalUsed * (0.05 + coreRandom() * 0.05); // 0-10% of used
-      const remaining = totalUsed - user - system - iowait;
+      const remaining = totalUsed - user - nice - system - iowait;
       
       const coreUsage = {
         core,
         user: Math.max(0, user),
+        nice: Math.max(0, nice),
         system: Math.max(0, system),
         idle: Math.max(0, idle),
         iowait: Math.max(0, iowait),
@@ -108,6 +111,7 @@ export class MetricsGenerator {
       
       // Aggregate for overall system metrics
       totalAggregateUsage.user += coreUsage.user;
+      totalAggregateUsage.nice += coreUsage.nice;
       totalAggregateUsage.system += coreUsage.system;
       totalAggregateUsage.idle += coreUsage.idle;
       totalAggregateUsage.iowait += coreUsage.iowait;
@@ -120,6 +124,7 @@ export class MetricsGenerator {
     // Average the aggregated usage across all cores
     const avgUsage = {
       user: totalAggregateUsage.user / hostConfig.vcpus,
+      nice: totalAggregateUsage.nice / hostConfig.vcpus,
       system: totalAggregateUsage.system / hostConfig.vcpus,
       idle: totalAggregateUsage.idle / hostConfig.vcpus,
       iowait: totalAggregateUsage.iowait / hostConfig.vcpus,
