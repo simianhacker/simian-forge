@@ -11,6 +11,7 @@ const tracer = trace.getTracer('simian-forge');
 export interface HostSimulatorOptions {
   interval: string;
   backfill: string;
+  count: number;
   elasticsearchUrl: string;
   elasticsearchAuth?: string;
   format: 'otel' | 'elastic' | 'both';
@@ -280,9 +281,8 @@ export class HostSimulator {
 
   private generateHostNames(): string[] {
     const names: string[] = [];
-    const count = 5 + Math.floor(Math.random() * 10); // 5-15 hosts
 
-    for (let i = 1; i <= count; i++) {
+    for (let i = 1; i <= this.options.count; i++) {
       names.push(`host-${i.toString().padStart(2, '0')}`);
     }
 

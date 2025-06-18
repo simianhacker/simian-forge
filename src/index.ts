@@ -21,6 +21,7 @@ async function main() {
       program
         .option('--interval <value>', 'Frequency of data generation (e.g., 30s, 5m)', '1m')
         .option('--backfill <value>', 'How far back to backfill data (e.g., now-1h)', 'now-5m')
+        .option('--count <number>', 'Number of entities to generate', '10')
         .option('--dataset <name>', 'Name of the dataset', 'hosts')
         .option('--elasticsearch-url <url>', 'Elasticsearch cluster URL', 'http://localhost:9200')
         .option('--elasticsearch-auth <auth>', 'Elasticsearch auth in username:password format', 'elastic:changeme')
@@ -46,9 +47,16 @@ async function main() {
         throw new Error(`Invalid format: ${options.format}. Must be 'otel', 'elastic', or 'both'.`);
       }
 
+      // Validate count
+      const count = parseInt(options.count, 10);
+      if (isNaN(count) || count <= 0) {
+        throw new Error(`Invalid count: ${options.count}. Must be a positive integer.`);
+      }
+
       console.log('Starting Simian Forge with options:', {
         interval: options.interval,
         backfill: options.backfill,
+        count: count,
         dataset: options.dataset,
         elasticsearchUrl: options.elasticsearchUrl,
         format: options.format,
@@ -59,6 +67,7 @@ async function main() {
       const simulator = new HostSimulator({
         interval: options.interval,
         backfill: options.backfill,
+        count: count,
         elasticsearchUrl: options.elasticsearchUrl,
         elasticsearchAuth: options.elasticsearchAuth,
         format: options.format as 'otel' | 'elastic' | 'both'

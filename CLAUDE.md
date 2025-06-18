@@ -14,6 +14,7 @@ Requirements:
 - The command line should support:
   - `--interval` controls the frequency of the data in `{value}{unit}`, units is either `s` for seconds and `m` for minutes.
   - `--backfill` controls how far back the data should backfill, uses date math like `now-1h`
+  - `--count` controls the number of entities to generate (default: 10)
   - `--dataset` the name of the dataset
   - `--elasticsearch-url` the url of the Elasticsearch cluster
   - `--elasticsearch-auth` the username and password in `{username}:{password}` format

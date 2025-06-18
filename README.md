@@ -73,6 +73,7 @@ simian-forge [options]
 Options:
   --interval <value>           Frequency of data generation (e.g., 30s, 5m) (default: "1m")
   --backfill <value>           How far back to backfill data (e.g., now-1h) (default: "now-5m")
+  --count <number>             Number of entities to generate (default: "10")
   --dataset <name>             Name of the dataset (default: "hosts")
   --elasticsearch-url <url>    Elasticsearch cluster URL (default: "http://localhost:9200")
   --elasticsearch-auth <auth>  Elasticsearch auth in username:password format (default: "elastic:changeme")
@@ -100,6 +101,16 @@ Connect to remote Elasticsearch with authentication:
 Generate only Elastic format with custom collector:
 ```bash
 ./forge --format elastic --collector http://otel-collector:4318
+```
+
+Generate metrics for 25 hosts with custom interval:
+```bash
+./forge --count 25 --interval 30s
+```
+
+Generate small-scale test with 3 hosts:
+```bash
+./forge --count 3 --backfill now-30m --interval 1m
 ```
 
 ## Data Formats
