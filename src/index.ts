@@ -3,6 +3,7 @@
 import { Command } from 'commander';
 import { initializeTracing } from './tracing';
 import { HostSimulator } from './simulators/host-simulator';
+import { simianLogger } from './logger';
 import { trace } from '@opentelemetry/api';
 
 const tracer = trace.getTracer('simian-forge');
@@ -31,6 +32,9 @@ async function main() {
 
       // Initialize tracing with collector URL
       await initializeTracing(options.collector);
+      
+      // Initialize logger with Elasticsearch
+      simianLogger.initializeElasticsearch(options.elasticsearchUrl, options.elasticsearchAuth);
 
       // Validate dataset
       if (options.dataset !== 'hosts') {
@@ -61,6 +65,13 @@ async function main() {
       });
 
       await simulator.start();
+      
+      // Cleanup on shutdown
+      process.on('SIGINT', async () => {
+        console.log('Shutting down...');
+        await simianLogger.shutdown();
+        process.exit(0);
+      });
       
       span.setStatus({ code: 1 }); // OK
     } catch (error) {
