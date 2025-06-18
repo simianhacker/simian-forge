@@ -62,7 +62,7 @@ npm run build
 
 Generate metrics for 5 minutes with default settings:
 ```bash
-npm run start
+./forge
 ```
 
 ### Command Line Options
@@ -84,22 +84,22 @@ Options:
 
 Generate only OpenTelemetry format metrics:
 ```bash
-npm run start -- --format otel --interval 30s
+./forge --format otel --interval 30s
 ```
 
 Generate metrics with 1-hour backfill:
 ```bash
-npm run start -- --backfill now-1h --interval 2m
+./forge --backfill now-1h --interval 2m
 ```
 
 Connect to remote Elasticsearch with authentication:
 ```bash
-npm run start -- --elasticsearch-url https://my-cluster.com:9200 --elasticsearch-auth myuser:mypass
+./forge --elasticsearch-url https://my-cluster.com:9200 --elasticsearch-auth myuser:mypass
 ```
 
 Generate only Elastic format with custom collector:
 ```bash
-npm run start -- --format elastic --collector http://otel-collector:4318
+./forge --format elastic --collector http://otel-collector:4318
 ```
 
 ## Data Formats
@@ -196,8 +196,9 @@ src/
 
 ```bash
 npm run build    # Compile TypeScript to JavaScript
-npm run start    # Run the compiled application
+npm run start    # Run the compiled application (use ./forge for easier CLI)
 npm run dev      # Build and run the application
+./forge          # Convenient wrapper for npm run start
 ```
 
 ### Development Setup
@@ -212,7 +213,7 @@ npm install
 3. Build and test:
 ```bash
 npm run build
-npm run start -- --help
+./forge --help
 ```
 
 ### Adding New Metrics
@@ -244,7 +245,7 @@ docker run -p 9200:9200 -e "discovery.type=single-node" -e "xpack.security.enabl
 
 Run simian-forge:
 ```bash
-npm run start -- --elasticsearch-url http://localhost:9200
+./forge --elasticsearch-url http://localhost:9200
 ```
 
 ### With OpenTelemetry Collector
