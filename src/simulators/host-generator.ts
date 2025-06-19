@@ -1,6 +1,6 @@
 import { HostConfig, CloudConfig, NetworkInterface, DiskConfig } from '../types/host-types';
 import { getMachineSpec } from '../types/machine-types';
-import { hashString } from '../utils/hash';
+import { hashString, seededRandom } from '../utils/hash';
 import { trace } from '@opentelemetry/api';
 
 const tracer = trace.getTracer('simian-forge');
@@ -51,8 +51,7 @@ export class HostGenerator {
         }
 
         // Generate a deterministic but pseudo-random configuration based on host name
-        const seed = hashString(hostName);
-        const random = this.seededRandom(seed);
+        const random = seededRandom(hostName);
 
         // Choose cloud provider
         const providers: Array<'aws' | 'gcp' | 'azure'> = ['aws', 'gcp', 'azure'];
@@ -156,14 +155,6 @@ export class HostGenerator {
     });
   }
 
-
-  private seededRandom(seed: number): () => number {
-    let state = seed;
-    return () => {
-      state = (state * 1664525 + 1013904223) % 4294967296;
-      return state / 4294967296;
-    };
-  }
 
   private generateInstanceId(provider: string, random: () => number): string {
     switch (provider) {

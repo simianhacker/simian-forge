@@ -1,5 +1,5 @@
 import { HostConfig, HostMetrics, CounterState, CpuMetrics, LoadMetrics, MemoryMetrics, DiskIOMetrics, FilesystemMetrics, NetworkMetrics, ProcessMetrics } from '../types/host-types';
-import { hashString } from '../utils/hash';
+import { seededRandom } from '../utils/hash';
 import { trace } from '@opentelemetry/api';
 
 const tracer = trace.getTracer('simian-forge');
@@ -63,7 +63,7 @@ export class MetricsGenerator {
     const baseLoad = this.getTimeBasedLoad(hour);
     
     // Add some randomness and variation
-    const random = this.seededRandom(hostConfig.name + timestamp.getTime());
+    const random = seededRandom(hostConfig.name + timestamp.getTime());
     
     // Generate per-core CPU usage with variations
     const perCoreUsage = [];
@@ -80,7 +80,7 @@ export class MetricsGenerator {
     
     for (let core = 0; core < hostConfig.vcpus; core++) {
       // Each core gets slightly different load with some randomness
-      const coreRandom = this.seededRandom(hostConfig.name + timestamp.getTime() + core);
+      const coreRandom = seededRandom(hostConfig.name + timestamp.getTime() + core);
       const coreVariation = (coreRandom() - 0.5) * 30; // ±15% variation per core
       const coreLoad = Math.max(5, Math.min(95, baseLoad + coreVariation));
       
@@ -166,7 +166,7 @@ export class MetricsGenerator {
     
     // Load average should correlate with CPU usage but be smoothed
     const baseLoad = loadFactor * hostConfig.vcpus;
-    const random = this.seededRandom(hostConfig.name + timestamp.getTime() + 'load');
+    const random = seededRandom(hostConfig.name + timestamp.getTime() + 'load');
     
     return {
       load1m: Math.max(0, baseLoad + (random() - 0.5) * 0.5),
@@ -177,7 +177,7 @@ export class MetricsGenerator {
 
   private generateMemoryMetrics(hostConfig: HostConfig, timestamp: Date): MemoryMetrics {
     const totalBytes = hostConfig.memoryGB * 1024 * 1024 * 1024;
-    const random = this.seededRandom(hostConfig.name + timestamp.getTime() + 'memory');
+    const random = seededRandom(hostConfig.name + timestamp.getTime() + 'memory');
     
     // Memory usage typically 40-80% depending on workload
     const usagePercent = 40 + random() * 40;
@@ -209,7 +209,7 @@ export class MetricsGenerator {
   private generateDiskIOMetrics(hostConfig: HostConfig, counters: CounterState, timestamp: Date): DiskIOMetrics[] {
     return hostConfig.disks.map(disk => {
       const deviceKey = `diskio_${disk.device}`;
-      const random = this.seededRandom(hostConfig.name + timestamp.getTime() + deviceKey);
+      const random = seededRandom(hostConfig.name + timestamp.getTime() + deviceKey);
       
       // Generate IO rates (bytes/sec and ops/sec)
       const readBytesPerSec = random() * 50 * 1024 * 1024; // 0-50 MB/s
@@ -241,7 +241,7 @@ export class MetricsGenerator {
   }
 
   private generateFilesystemMetrics(hostConfig: HostConfig, timestamp: Date): FilesystemMetrics[] {
-    const random = this.seededRandom(hostConfig.name + timestamp.getTime() + 'filesystem');
+    const random = seededRandom(hostConfig.name + timestamp.getTime() + 'filesystem');
     
     return hostConfig.disks.map(disk => {
       // Filesystem usage typically grows slowly over time
@@ -273,7 +273,7 @@ export class MetricsGenerator {
 
   private generateNetworkMetrics(hostConfig: HostConfig, counters: CounterState, timestamp: Date): NetworkMetrics[] {
     return hostConfig.networkInterfaces.map(iface => {
-      const random = this.seededRandom(hostConfig.name + timestamp.getTime() + iface.name);
+      const random = seededRandom(hostConfig.name + timestamp.getTime() + iface.name);
       
       // Skip loopback for realistic network traffic
       if (iface.type === 'loopback') {
@@ -325,7 +325,7 @@ export class MetricsGenerator {
   }
 
   private generateProcessMetrics(hostConfig: HostConfig, timestamp: Date): ProcessMetrics {
-    const random = this.seededRandom(hostConfig.name + timestamp.getTime() + 'process');
+    const random = seededRandom(hostConfig.name + timestamp.getTime() + 'process');
     
     // Process count scales with machine size
     const baseProcesses = 50 + hostConfig.vcpus * 20;
@@ -365,11 +365,4 @@ export class MetricsGenerator {
     return newValue > Number.MAX_SAFE_INTEGER ? increment : Math.floor(newValue);
   }
 
-  private seededRandom(seed: string): () => number {
-    let state = hashString(seed);
-    return () => {
-      state = (state * 1664525 + 1013904223) % 4294967296;
-      return state / 4294967296;
-    };
-  }
 }
