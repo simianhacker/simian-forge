@@ -1,3 +1,5 @@
+import { hashString } from '../utils/hash';
+
 export abstract class BaseFormatter {
   protected generateHostId(hostName: string): string {
     // Generate a deterministic host ID based on hostname
@@ -41,7 +43,7 @@ export abstract class BaseFormatter {
 
   protected generateHostIPs(hostName: string): string[] {
     // Generate deterministic IPs based on hostname
-    const hash = this.hashString(hostName);
+    const hash = hashString(hostName);
     const lastOctet = (hash % 200) + 10; // 10-209
     const thirdOctet = ((hash >> 8) % 200) + 10; // 10-209
     
@@ -54,19 +56,10 @@ export abstract class BaseFormatter {
 
   protected generateHostMACs(hostName: string): string[] {
     // Generate deterministic MAC addresses based on hostname
-    const hash = this.hashString(hostName);
+    const hash = hashString(hostName);
     const mac1 = `02:42:ac:${((hash >> 16) & 0xff).toString(16).padStart(2, '0')}:${((hash >> 8) & 0xff).toString(16).padStart(2, '0')}:${(hash & 0xff).toString(16).padStart(2, '0')}`;
     
     return [mac1];
   }
 
-  protected hashString(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash);
-  }
 }

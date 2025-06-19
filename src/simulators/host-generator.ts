@@ -1,5 +1,6 @@
 import { HostConfig, CloudConfig, NetworkInterface, DiskConfig } from '../types/host-types';
 import { getMachineSpec } from '../types/machine-types';
+import { hashString } from '../utils/hash';
 import { trace } from '@opentelemetry/api';
 
 const tracer = trace.getTracer('simian-forge');
@@ -50,7 +51,7 @@ export class HostGenerator {
         }
 
         // Generate a deterministic but pseudo-random configuration based on host name
-        const seed = this.hashString(hostName);
+        const seed = hashString(hostName);
         const random = this.seededRandom(seed);
 
         // Choose cloud provider
@@ -155,15 +156,6 @@ export class HostGenerator {
     });
   }
 
-  private hashString(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash);
-  }
 
   private seededRandom(seed: number): () => number {
     let state = seed;

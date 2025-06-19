@@ -1,4 +1,5 @@
 import { HostConfig, HostMetrics, CounterState, CpuMetrics, LoadMetrics, MemoryMetrics, DiskIOMetrics, FilesystemMetrics, NetworkMetrics, ProcessMetrics } from '../types/host-types';
+import { hashString } from '../utils/hash';
 import { trace } from '@opentelemetry/api';
 
 const tracer = trace.getTracer('simian-forge');
@@ -365,14 +366,7 @@ export class MetricsGenerator {
   }
 
   private seededRandom(seed: string): () => number {
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      const char = seed.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    
-    let state = Math.abs(hash);
+    let state = hashString(seed);
     return () => {
       state = (state * 1664525 + 1013904223) % 4294967296;
       return state / 4294967296;
