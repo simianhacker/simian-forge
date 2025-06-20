@@ -63,6 +63,8 @@ Requirements:
    - Include technical details and reasoning
    - Mention any breaking changes or compatibility updates
    
+   Prompt: "[Include the original user request/prompt that led to these changes]"
+   
    🤖 Generated with [Claude Code](https://claude.ai/code)
    
    Co-Authored-By: Claude <noreply@anthropic.com>
@@ -74,6 +76,7 @@ Requirements:
 ### Commit Message Guidelines
 - Start with imperative verb (Add, Update, Fix, Remove)
 - Include detailed bullet points explaining changes
+- **Always include the original user prompt** that led to the changes in a "Prompt:" section
 - Always include Claude Code attribution footer
 - Use HEREDOC format for multi-line messages to ensure proper formatting
 
