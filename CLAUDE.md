@@ -54,7 +54,7 @@ Requirements:
 1. Make code changes to implement features or fix issues
 2. Build and test: `npm run build && npm run test-logger`
 3. Add files: `git add <files>`
-4. Commit with descriptive message:
+4. When user says "Commit changes", create commit AND push automatically:
    ```bash
    git commit -m "$(cat <<'EOF'
    Brief description of changes
@@ -71,7 +71,7 @@ Requirements:
    EOF
    )"
    ```
-5. Push to GitHub: `git push origin main`
+5. Automatically push to GitHub: `git push origin main`
 
 ### Commit Message Guidelines
 - Start with imperative verb (Add, Update, Fix, Remove)
