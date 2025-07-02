@@ -37,6 +37,7 @@ Simian Forge simulates realistic host metrics including CPU, memory, network, di
 - npm
 - Elasticsearch cluster (optional, for data storage)
 - OpenTelemetry Collector (optional, for trace collection)
+- **Kibana Setup**: Before indexing data, go to "Integrations" in Kibana and install the "System" integration to ensure proper index templates and mappings are configured
 
 ### Setup
 
