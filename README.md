@@ -72,7 +72,7 @@ Generate metrics for 5 minutes with default settings:
 simian-forge [options]
 
 Options:
-  --interval <value>           Frequency of data generation (e.g., 30s, 5m) (default: "1m")
+  --interval <value>           Frequency of data generation (e.g., 30s, 5m) (default: "10s")
   --backfill <value>           How far back to backfill data (e.g., now-1h) (default: "now-5m")
   --count <number>             Number of entities to generate (default: "10")
   --dataset <name>             Name of the dataset (default: "hosts")

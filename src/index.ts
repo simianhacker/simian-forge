@@ -19,7 +19,7 @@ async function main() {
         .version('1.0.0');
 
       program
-        .option('--interval <value>', 'Frequency of data generation (e.g., 30s, 5m)', '1m')
+        .option('--interval <value>', 'Frequency of data generation (e.g., 30s, 5m)', '10s')
         .option('--backfill <value>', 'How far back to backfill data (e.g., now-1h)', 'now-5m')
         .option('--count <number>', 'Number of entities to generate', '10')
         .option('--dataset <name>', 'Name of the dataset', 'hosts')
