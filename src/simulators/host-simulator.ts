@@ -2,6 +2,7 @@ import { HostGenerator } from './host-generator';
 import { MetricsGenerator } from './metrics-generator';
 import { OtelFormatter, OtelDocument } from '../formatters/otel-formatter';
 import { ElasticFormatter, ElasticDocument } from '../formatters/elastic-formatter';
+import { createDynamicTemplateMapping } from '../utils/otel-template-mapper';
 import { Client } from '@elastic/elasticsearch';
 import { trace } from '@opentelemetry/api';
 import moment from 'moment';
@@ -216,17 +217,27 @@ export class HostSimulator {
             // For OTel format, use data stream dataset from document
             const otelDoc = doc as OtelDocument;
             indexName = `metrics-${otelDoc.data_stream.dataset}-${otelDoc.data_stream.namespace}`;
+
+            // Add dynamic template mapping for OpenTelemetry metrics
+            const dynamicTemplateMapping = createDynamicTemplateMapping(otelDoc.metrics);
+
+            operations.push({
+              create: {
+                _index: indexName,
+                dynamic_templates: dynamicTemplateMapping
+              }
+            });
           } else {
             // For Elastic format, use data stream dataset from document
             const elasticDoc = doc as ElasticDocument;
             indexName = `metrics-${elasticDoc.data_stream.dataset}-${elasticDoc.data_stream.namespace}`;
-          }
 
-          operations.push({
-            create: {
-              _index: indexName
-            }
-          });
+            operations.push({
+              create: {
+                _index: indexName
+              }
+            });
+          }
           operations.push(doc);
         }
 
