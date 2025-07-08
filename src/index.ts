@@ -84,7 +84,7 @@ async function main() {
         .option('--count <number>', 'Number of entities to generate', '10')
         .option('--dataset <name>', 'Name of the dataset', 'hosts')
         .option('--elasticsearch-url <url>', 'Elasticsearch cluster URL', 'http://localhost:9200')
-        .option('--elasticsearch-auth <auth>', 'Elasticsearch auth in username:password format', '')
+        .option('--elasticsearch-auth <auth>', 'Elasticsearch auth in username:password format', 'elastic:changeme')
         .option('--elasticsearch-api-key <key>', 'Elasticsearch API key for authentication', '')
         .option('--collector <url>', 'OpenTelemetry collector HTTP endpoint', 'http://localhost:4318')
         .option('--format <format>', 'Output format: otel, elastic, or both', 'both')

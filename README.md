@@ -180,7 +180,7 @@ Options:
   --count <number>                Number of entities to generate (default: "10")
   --dataset <name>                Name of the dataset: hosts, weather (default: "hosts")
   --elasticsearch-url <url>       Elasticsearch cluster URL (default: "http://localhost:9200")
-  --elasticsearch-auth <auth>     Elasticsearch auth in username:password format (default: "")
+  --elasticsearch-auth <auth>     Elasticsearch auth in username:password format (default: "elastic:changeme")
   --elasticsearch-api-key <key>   Elasticsearch API key for authentication (default: "")
   --collector <url>               OpenTelemetry collector HTTP endpoint (default: "http://localhost:4318")
   --format <format>               Output format: otel, elastic, or both (hosts only) (default: "both")
