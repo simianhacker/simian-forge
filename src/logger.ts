@@ -1,6 +1,7 @@
 import { logs as logsApi, SeverityNumber } from '@opentelemetry/api-logs';
 import { trace, context, SpanStatusCode } from '@opentelemetry/api';
 import { Client } from '@elastic/elasticsearch';
+import { createElasticsearchClient } from './utils/elasticsearch-client';
 
 const logger = logsApi.getLogger('simian-forge', '1.0.0');
 
@@ -50,20 +51,12 @@ class SimianLogger {
     this.interceptConsole();
   }
 
-  public initializeElasticsearch(url: string, auth: string): void {
-    const clientConfig: any = {
-      node: url
-    };
-    
-    if (auth && auth.includes(':')) {
-      const [username, password] = auth.split(':');
-      clientConfig.auth = {
-        username,
-        password
-      };
-    }
-    
-    this.elasticsearchClient = new Client(clientConfig);
+  public initializeElasticsearch(url: string, auth: string, apiKey?: string): void {
+    this.elasticsearchClient = createElasticsearchClient({
+      url,
+      auth,
+      apiKey
+    });
 
     // Start periodic flushing
     this.flushInterval = setInterval(() => {

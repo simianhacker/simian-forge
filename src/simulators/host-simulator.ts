@@ -6,6 +6,7 @@ import { createDynamicTemplateMapping } from '../utils/otel-template-mapper';
 import { Client } from '@elastic/elasticsearch';
 import { trace } from '@opentelemetry/api';
 import moment from 'moment';
+import { createElasticsearchClient } from '../utils/elasticsearch-client';
 
 const tracer = trace.getTracer('simian-forge');
 
@@ -15,6 +16,7 @@ export interface HostSimulatorOptions {
   count: number;
   elasticsearchUrl: string;
   elasticsearchAuth?: string;
+  elasticsearchApiKey?: string;
   format: 'otel' | 'elastic' | 'both';
 }
 
@@ -45,16 +47,11 @@ export class HostSimulator {
     this.hostNames = this.generateHostNames();
 
     // Initialize Elasticsearch client
-    const clientConfig: any = {
-      node: options.elasticsearchUrl
-    };
-
-    if (options.elasticsearchAuth) {
-      const [username, password] = options.elasticsearchAuth.split(':');
-      clientConfig.auth = { username, password };
-    }
-
-    this.elasticsearchClient = new Client(clientConfig);
+    this.elasticsearchClient = createElasticsearchClient({
+      url: options.elasticsearchUrl,
+      auth: options.elasticsearchAuth,
+      apiKey: options.elasticsearchApiKey
+    });
   }
 
   async start(): Promise<void> {

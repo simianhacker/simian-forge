@@ -109,7 +109,12 @@ INTERVAL=30s COUNT=20 FORMAT=otel docker compose --profile full-stack up -d
 # Run one-time data generation
 docker compose run --rm simian-forge --purge --backfill now-2h
 
-# Connect to external Elasticsearch
+# Connect to external Elasticsearch with API key
+ELASTICSEARCH_URL=https://my-cluster.com:9200 \
+ELASTICSEARCH_API_KEY=your-api-key-here \
+docker compose --profile full-stack up -d
+
+# Or with username/password
 ELASTICSEARCH_URL=https://my-cluster.com:9200 \
 ELASTICSEARCH_AUTH=myuser:mypass \
 docker compose --profile full-stack up -d
@@ -120,7 +125,13 @@ docker compose --profile full-stack up -d
 Run the container directly (bring your own Elasticsearch):
 
 ```bash
-# Basic usage
+# Basic usage with API key
+docker run --rm simianhacker/simian-forge:latest \
+  --elasticsearch-url http://your-elasticsearch:9200 \
+  --elasticsearch-api-key your-api-key-here \
+  --count 5 --interval 30s
+
+# Basic usage with username/password
 docker run --rm simianhacker/simian-forge:latest \
   --elasticsearch-url http://your-elasticsearch:9200 \
   --elasticsearch-auth elastic:yourpassword \
@@ -133,10 +144,10 @@ docker run --rm simianhacker/simian-forge:latest \
   --interval 1m \
   --elasticsearch-url http://your-elasticsearch:9200
 
-# Connect to external services
+# Connect to external services with API key
 docker run --rm simianhacker/simian-forge:latest \
   --elasticsearch-url https://my-cluster.com:9200 \
-  --elasticsearch-auth myuser:mypass \
+  --elasticsearch-api-key your-api-key-here \
   --collector http://my-collector:4318 \
   --format otel
 ```
@@ -164,16 +175,38 @@ Generate metrics for 5 minutes with default settings:
 simian-forge [options]
 
 Options:
-  --interval <value>           Frequency of data generation (e.g., 30s, 5m) (default: "10s")
-  --backfill <value>           How far back to backfill data (e.g., now-1h) (default: "now-5m")
-  --count <number>             Number of entities to generate (default: "10")
-  --dataset <name>             Name of the dataset: hosts, weather (default: "hosts")
-  --elasticsearch-url <url>    Elasticsearch cluster URL (default: "http://localhost:9200")
-  --elasticsearch-auth <auth>  Elasticsearch auth in username:password format (default: "elastic:changeme")
-  --collector <url>            OpenTelemetry collector HTTP endpoint (default: "http://localhost:4318")
-  --format <format>            Output format: otel, elastic, or both (hosts only) (default: "both")
-  --purge                      Delete existing data streams for the dataset before starting
+  --interval <value>              Frequency of data generation (e.g., 30s, 5m) (default: "10s")
+  --backfill <value>              How far back to backfill data (e.g., now-1h) (default: "now-5m")
+  --count <number>                Number of entities to generate (default: "10")
+  --dataset <name>                Name of the dataset: hosts, weather (default: "hosts")
+  --elasticsearch-url <url>       Elasticsearch cluster URL (default: "http://localhost:9200")
+  --elasticsearch-auth <auth>     Elasticsearch auth in username:password format (default: "")
+  --elasticsearch-api-key <key>   Elasticsearch API key for authentication (default: "")
+  --collector <url>               OpenTelemetry collector HTTP endpoint (default: "http://localhost:4318")
+  --format <format>               Output format: otel, elastic, or both (hosts only) (default: "both")
+  --purge                         Delete existing data streams for the dataset before starting
 ```
+
+### Authentication Options
+
+Simian Forge supports multiple authentication methods for Elasticsearch:
+
+1. **API Key Authentication (Recommended)**:
+   ```bash
+   ./forge --elasticsearch-api-key "your-api-key-here"
+   ```
+
+2. **Username/Password Authentication**:
+   ```bash
+   ./forge --elasticsearch-auth "username:password"
+   ```
+
+3. **No Authentication** (for local development):
+   ```bash
+   ./forge --elasticsearch-url http://localhost:9200
+   ```
+
+**Note**: API key authentication takes precedence over username/password if both are provided. API keys are recommended for production use as they can be easily revoked and have fine-grained permissions.
 
 ### Example Commands
 
@@ -218,7 +251,12 @@ Purge existing weather data and start fresh:
 
 #### General Options
 
-Connect to remote Elasticsearch with authentication:
+Connect to remote Elasticsearch with API key authentication:
+```bash
+./forge --elasticsearch-url https://my-cluster.com:9200 --elasticsearch-api-key your-api-key-here
+```
+
+Connect to remote Elasticsearch with username/password authentication:
 ```bash
 ./forge --elasticsearch-url https://my-cluster.com:9200 --elasticsearch-auth myuser:mypass
 ```
@@ -466,6 +504,11 @@ FORMAT=both
 BACKFILL=now-1h
 ELASTICSEARCH_PORT=9200
 KIBANA_PORT=5601
+
+# Authentication options (choose one):
+ELASTICSEARCH_API_KEY=your-api-key-here
+# OR
+ELASTICSEARCH_AUTH=username:password
 ```
 
 ### Integration with Existing Docker Compose

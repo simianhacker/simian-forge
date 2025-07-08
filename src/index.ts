@@ -7,22 +7,18 @@ import { WeatherSimulator } from './simulators/weather-simulator';
 import { simianLogger } from './logger';
 import { trace } from '@opentelemetry/api';
 import { Client } from '@elastic/elasticsearch';
+import { createElasticsearchClient } from './utils/elasticsearch-client';
 
 const tracer = trace.getTracer('simian-forge');
 
-async function purgeDataStreams(elasticsearchUrl: string, elasticsearchAuth: string, dataset: string, format?: string): Promise<void> {
+async function purgeDataStreams(elasticsearchUrl: string, elasticsearchAuth: string, elasticsearchApiKey: string, dataset: string, format?: string): Promise<void> {
   return tracer.startActiveSpan('purgeDataStreams', async (span) => {
     try {
-      const clientConfig: any = {
-        node: elasticsearchUrl
-      };
-
-      if (elasticsearchAuth) {
-        const [username, password] = elasticsearchAuth.split(':');
-        clientConfig.auth = { username, password };
-      }
-
-      const client = new Client(clientConfig);
+      const client = createElasticsearchClient({
+        url: elasticsearchUrl,
+        auth: elasticsearchAuth,
+        apiKey: elasticsearchApiKey
+      });
 
       const dataStreamsToDelete: string[] = [];
 
@@ -88,7 +84,8 @@ async function main() {
         .option('--count <number>', 'Number of entities to generate', '10')
         .option('--dataset <name>', 'Name of the dataset', 'hosts')
         .option('--elasticsearch-url <url>', 'Elasticsearch cluster URL', 'http://localhost:9200')
-        .option('--elasticsearch-auth <auth>', 'Elasticsearch auth in username:password format', 'elastic:changeme')
+        .option('--elasticsearch-auth <auth>', 'Elasticsearch auth in username:password format', '')
+        .option('--elasticsearch-api-key <key>', 'Elasticsearch API key for authentication', '')
         .option('--collector <url>', 'OpenTelemetry collector HTTP endpoint', 'http://localhost:4318')
         .option('--format <format>', 'Output format: otel, elastic, or both', 'both')
         .option('--purge', 'Delete existing data streams for the dataset before starting');
@@ -100,7 +97,7 @@ async function main() {
       await initializeTracing(options.collector);
       
       // Initialize logger with Elasticsearch
-      simianLogger.initializeElasticsearch(options.elasticsearchUrl, options.elasticsearchAuth);
+      simianLogger.initializeElasticsearch(options.elasticsearchUrl, options.elasticsearchAuth, options.elasticsearchApiKey);
 
       // Validate dataset
       if (!['hosts', 'weather'].includes(options.dataset)) {
@@ -131,7 +128,7 @@ async function main() {
 
       // Handle purge if requested
       if (options.purge) {
-        await purgeDataStreams(options.elasticsearchUrl, options.elasticsearchAuth, options.dataset, options.format);
+        await purgeDataStreams(options.elasticsearchUrl, options.elasticsearchAuth, options.elasticsearchApiKey, options.dataset, options.format);
       }
 
       // Create and start the appropriate simulator
@@ -144,6 +141,7 @@ async function main() {
           count: count,
           elasticsearchUrl: options.elasticsearchUrl,
           elasticsearchAuth: options.elasticsearchAuth,
+          elasticsearchApiKey: options.elasticsearchApiKey,
           format: options.format as 'otel' | 'elastic' | 'both'
         });
       } else if (options.dataset === 'weather') {
@@ -152,7 +150,8 @@ async function main() {
           backfill: options.backfill,
           count: count,
           elasticsearchUrl: options.elasticsearchUrl,
-          elasticsearchAuth: options.elasticsearchAuth
+          elasticsearchAuth: options.elasticsearchAuth,
+          elasticsearchApiKey: options.elasticsearchApiKey
         });
       } else {
         throw new Error(`Unsupported dataset: ${options.dataset}`);

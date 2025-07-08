@@ -4,6 +4,7 @@ import { FieldSenseFormatter, FieldSenseDocument } from '../formatters/fieldsens
 import { Client } from '@elastic/elasticsearch';
 import { trace } from '@opentelemetry/api';
 import moment from 'moment';
+import { createElasticsearchClient } from '../utils/elasticsearch-client';
 
 const tracer = trace.getTracer('simian-forge');
 
@@ -13,6 +14,7 @@ export interface WeatherSimulatorOptions {
   count: number;
   elasticsearchUrl: string;
   elasticsearchAuth?: string;
+  elasticsearchApiKey?: string;
 }
 
 export class WeatherSimulator {
@@ -34,16 +36,11 @@ export class WeatherSimulator {
     this.backfillStart = this.parseBackfill(options.backfill);
     this.stationIds = this.generateStationIds();
 
-    const clientConfig: any = {
-      node: options.elasticsearchUrl
-    };
-
-    if (options.elasticsearchAuth) {
-      const [username, password] = options.elasticsearchAuth.split(':');
-      clientConfig.auth = { username, password };
-    }
-
-    this.elasticsearchClient = new Client(clientConfig);
+    this.elasticsearchClient = createElasticsearchClient({
+      url: options.elasticsearchUrl,
+      auth: options.elasticsearchAuth,
+      apiKey: options.elasticsearchApiKey
+    });
   }
 
   async start(): Promise<void> {

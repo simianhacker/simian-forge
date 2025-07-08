@@ -13,6 +13,7 @@ services:
       "--dataset", "${DATASET:-weather}",
       "--elasticsearch-url", "${ELASTICSEARCH_URL:-http://elasticsearch:9200}",
       "--elasticsearch-auth", "${ELASTICSEARCH_AUTH:-}",
+      "--elasticsearch-api-key", "${ELASTICSEARCH_API_KEY:-}",
       "--collector", "${COLLECTOR:-http://otel-collector:4318}",
       "--format", "${FORMAT:-both}"
     ]
