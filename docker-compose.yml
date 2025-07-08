@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  simian-forge:
+    build: .
+    image: simianhacker/simian-forge:latest
+    container_name: simian-forge
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+    command: [
+      "--interval", "${INTERVAL:-10s}",
+      "--backfill", "${BACKFILL:-now-5m}",
+      "--count", "${COUNT:-10}",
+      "--dataset", "${DATASET:-hosts}",
+      "--elasticsearch-url", "${ELASTICSEARCH_URL:-http://elasticsearch:9200}",
+      "--elasticsearch-auth", "${ELASTICSEARCH_AUTH:-elastic:changeme}",
+      "--collector", "${COLLECTOR:-http://otel-collector:4318}",
+      "--format", "${FORMAT:-both}"
+    ]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    networks:
+      - simian-network
+    profiles:
+      - full-stack
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - ELASTIC_PASSWORD=changeme
+    ports:
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - simian-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    profiles:
+      - full-stack
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.0
+    container_name: kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD=changeme
+    ports:
+      - "${KIBANA_PORT:-5601}:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - simian-network
+    profiles:
+      - full-stack
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "${OTEL_GRPC_PORT:-4317}:4317"   # OTLP gRPC receiver
+      - "${OTEL_HTTP_PORT:-4318}:4318"   # OTLP HTTP receiver
+      - "${OTEL_METRICS_PORT:-8889}:8889"   # Prometheus metrics
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - simian-network
+    profiles:
+      - full-stack
+
+volumes:
+  elasticsearch-data:
+    driver: local
+
+networks:
+  simian-network:
+    driver: bridge

@@ -40,13 +40,40 @@ This makes it ideal for testing monitoring systems, dashboards, alerting rules, 
 
 ### Prerequisites
 
-- Node.js 18+ 
-- npm
-- Elasticsearch cluster (optional, for data storage)
-- OpenTelemetry Collector (optional, for trace collection)
+- Docker (recommended)
+- OR Node.js 18+ and npm for local development
+- Elasticsearch cluster (optional, included in Docker Compose)
+- OpenTelemetry Collector (optional, included in Docker Compose)
 - **Kibana Setup**: Before indexing data, go to "Integrations" in Kibana and install the "System" integration to ensure proper index templates and mappings are configured
 
-### Setup
+### Docker Setup (Recommended)
+
+The easiest way to get started is with Docker, which provides a complete testing environment:
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd simian-forge
+```
+
+2. Build the Docker image:
+```bash
+docker build -t simianhacker/simian-forge:latest .
+```
+
+3. Run with Docker Compose (includes Elasticsearch, Kibana, and OpenTelemetry):
+```bash
+# Start the full stack
+docker compose --profile full-stack up -d
+
+# View logs
+docker compose logs -f simian-forge
+
+# Stop the stack
+docker compose --profile full-stack down
+```
+
+### Local Development Setup
 
 1. Clone the repository:
 ```bash
@@ -66,7 +93,65 @@ npm run build
 
 ## Usage
 
-### Basic Usage
+### Docker Usage (Recommended)
+
+#### Using Docker Compose
+
+The easiest way to get started with a complete testing environment:
+
+```bash
+# Start with default settings
+docker compose --profile full-stack up -d
+
+# Customize with environment variables
+INTERVAL=30s COUNT=20 FORMAT=otel docker compose --profile full-stack up -d
+
+# Run one-time data generation
+docker compose run --rm simian-forge --purge --backfill now-2h
+
+# Connect to external Elasticsearch
+ELASTICSEARCH_URL=https://my-cluster.com:9200 \
+ELASTICSEARCH_AUTH=myuser:mypass \
+docker compose --profile full-stack up -d
+```
+
+#### Using Docker Directly
+
+Run the container directly (bring your own Elasticsearch):
+
+```bash
+# Basic usage
+docker run --rm simianhacker/simian-forge:latest \
+  --elasticsearch-url http://your-elasticsearch:9200 \
+  --elasticsearch-auth elastic:yourpassword \
+  --count 5 --interval 30s
+
+# Generate weather data
+docker run --rm simianhacker/simian-forge:latest \
+  --dataset weather \
+  --count 3 \
+  --interval 1m \
+  --elasticsearch-url http://your-elasticsearch:9200
+
+# Connect to external services
+docker run --rm simianhacker/simian-forge:latest \
+  --elasticsearch-url https://my-cluster.com:9200 \
+  --elasticsearch-auth myuser:mypass \
+  --collector http://my-collector:4318 \
+  --format otel
+```
+
+### Docker Configuration
+
+Copy `.env.example` to `.env` and customize:
+
+```bash
+cp .env.example .env
+# Edit .env file with your preferred settings
+docker compose --profile full-stack up -d
+```
+
+### Local Usage
 
 Generate metrics for 5 minutes with default settings:
 ```bash
@@ -345,11 +430,83 @@ All configurations are deterministic based on hostname, ensuring consistent data
 
 ## Testing
 
-### Local Elasticsearch
+### Docker Compose Testing Environment
+
+The included Docker Compose setup provides a complete testing environment:
+
+```bash
+# Start full stack (Elasticsearch, Kibana, OpenTelemetry Collector, Simian Forge)
+docker compose --profile full-stack up -d
+
+# Access services
+# Elasticsearch: http://localhost:9200
+# Kibana: http://localhost:5601
+# OpenTelemetry Collector: http://localhost:4318
+
+# View generated data in Kibana
+# Go to http://localhost:5601 and explore the data streams
+
+# Stop the stack
+docker compose --profile full-stack down
+```
+
+### Docker Environment Variables
+
+Configure the Docker Compose setup with environment variables:
+
+```bash
+# Create environment file
+cp .env.example .env
+
+# Example configurations in .env:
+INTERVAL=15s
+COUNT=25
+DATASET=hosts
+FORMAT=both
+BACKFILL=now-1h
+ELASTICSEARCH_PORT=9200
+KIBANA_PORT=5601
+```
+
+### Integration with Existing Docker Compose
+
+Add Simian Forge to your existing Docker Compose setup:
+
+```yaml
+version: '3.8'
+services:
+  # Your existing services...
+  
+  data-generator:
+    image: simianhacker/simian-forge:latest
+    environment:
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - COLLECTOR=http://otel-collector:4318
+      - INTERVAL=10s
+      - COUNT=15
+      - DATASET=hosts
+      - FORMAT=both
+    command: [
+      "--elasticsearch-url", "${ELASTICSEARCH_URL}",
+      "--collector", "${COLLECTOR}",
+      "--interval", "${INTERVAL}",
+      "--count", "${COUNT}",
+      "--dataset", "${DATASET}",
+      "--format", "${FORMAT}"
+    ]
+    depends_on:
+      - elasticsearch
+    networks:
+      - your-network
+```
+
+### Local Testing
+
+#### Local Elasticsearch
 
 Start a local Elasticsearch instance:
 ```bash
-docker run -p 9200:9200 -e "discovery.type=single-node" -e "xpack.security.enabled=false" docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+docker run -p 9200:9200 -e "discovery.type=single-node" -e "xpack.security.enabled=false" docker.elastic.co/elasticsearch/elasticsearch:8.13.0
 ```
 
 Run simian-forge:
@@ -357,25 +514,41 @@ Run simian-forge:
 ./forge --elasticsearch-url http://localhost:9200
 ```
 
-### With OpenTelemetry Collector
+#### With OpenTelemetry Collector
 
-Example collector configuration:
+The included `otel-collector-config.yaml` provides a complete OpenTelemetry Collector configuration that exports to Elasticsearch:
+
 ```yaml
 receivers:
   otlp:
     protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
 
 exporters:
-  elasticsearch:
-    endpoint: http://elasticsearch:9200
+  elasticsearch/traces:
+    endpoints: ["http://elasticsearch:9200"]
+    traces_index: traces-simian-forge
+  elasticsearch/logs:
+    endpoints: ["http://elasticsearch:9200"]
+    logs_index: logs-simian-forge
+  elasticsearch/metrics:
+    endpoints: ["http://elasticsearch:9200"]
+    metrics_index: metrics-simian-forge
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      exporters: [elasticsearch]
+      exporters: [elasticsearch/traces]
+    logs:
+      receivers: [otlp]
+      exporters: [elasticsearch/logs]
+    metrics:
+      receivers: [otlp]
+      exporters: [elasticsearch/metrics]
 ```
 
 ## Contributing
