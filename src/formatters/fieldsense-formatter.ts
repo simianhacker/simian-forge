@@ -9,8 +9,10 @@ export interface FieldSenseDocument {
   '_metric_names_hash': string;
   'station.id': string;
   'station.name': string;
-  'station.location.latitude': number;
-  'station.location.longitude': number;
+  'station.location.coordinates': {
+    lat: number;
+    lon: number;
+  };
   'station.location.altitude': number;
   'station.location.region': string;
   'station.location.country': string;
@@ -49,8 +51,10 @@ export class FieldSenseFormatter {
           '@timestamp': metrics.timestamp.toISOString(),
           'station.id': metrics.station.id,
           'station.name': metrics.station.name,
-          'station.location.latitude': metrics.station.location.latitude,
-          'station.location.longitude': metrics.station.location.longitude,
+          'station.location.coordinates': {
+            lat: metrics.station.location.latitude,
+            lon: metrics.station.location.longitude
+          },
           'station.location.altitude': metrics.station.location.altitude,
           'station.location.region': metrics.station.location.region,
           'station.location.country': metrics.station.location.country,
