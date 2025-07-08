@@ -1,6 +1,6 @@
 # Simian Forge
 
-A command-line tool for generating synthetic host metrics and sending them to Elasticsearch in both OpenTelemetry and Elastic Metricbeat formats.
+A command-line tool for generating synthetic data and sending it to Elasticsearch. Supports both host metrics (OpenTelemetry and Elastic Metricbeat formats) and weather station data (FieldSense format).
 
 ## AI Coding Experiment
 
@@ -18,16 +18,23 @@ This serves as a proof-of-concept for AI-assisted software development workflows
 
 ## Overview
 
-Simian Forge simulates realistic host metrics including CPU, memory, network, disk I/O, filesystem, and process statistics. It supports generating data in OpenTelemetry format and/or Elastic Metricbeat format, making it ideal for testing monitoring systems, dashboards, and alerting rules.
+Simian Forge simulates realistic synthetic data for Elasticsearch, supporting two main datasets:
+
+1. **Host Metrics**: CPU, memory, network, disk I/O, filesystem, and process statistics in OpenTelemetry and/or Elastic Metricbeat formats
+2. **Weather Station Data**: Environmental sensors, solar panels, energy consumption, and system metrics in FieldSense format
+
+This makes it ideal for testing monitoring systems, dashboards, alerting rules, and time series visualizations.
 
 ### Key Features
 
-- **Dual Format Support**: Generate metrics in OpenTelemetry and/or Elastic Metricbeat formats
-- **Realistic Data Generation**: Per-core CPU metrics, realistic network/disk patterns, and cloud provider specifics
+- **Multiple Datasets**: Host metrics and weather station data generation
+- **Format Support**: OpenTelemetry, Elastic Metricbeat, and FieldSense formats
+- **Realistic Data Generation**: Correlated metrics, smooth transitions, and realistic patterns
 - **Backfill & Real-time**: Historical data backfill with configurable real-time generation
-- **Host Simulation**: Deterministic host configurations with cloud provider details (AWS, GCP, Azure)
+- **Time Series Support**: Elasticsearch time series data streams with proper routing
+- **Cloud Provider Simulation**: Deterministic configurations with AWS, GCP, Azure specifics
 - **OpenTelemetry Instrumentation**: Full tracing support with configurable OTLP collector
-- **Elasticsearch Integration**: Direct indexing to Elasticsearch with proper data stream routing
+- **Development Tools**: Data stream purging for schema changes and fresh starts
 
 ## Installation
 
@@ -75,46 +82,106 @@ Options:
   --interval <value>           Frequency of data generation (e.g., 30s, 5m) (default: "10s")
   --backfill <value>           How far back to backfill data (e.g., now-1h) (default: "now-5m")
   --count <number>             Number of entities to generate (default: "10")
-  --dataset <name>             Name of the dataset (default: "hosts")
+  --dataset <name>             Name of the dataset: hosts, weather (default: "hosts")
   --elasticsearch-url <url>    Elasticsearch cluster URL (default: "http://localhost:9200")
   --elasticsearch-auth <auth>  Elasticsearch auth in username:password format (default: "elastic:changeme")
   --collector <url>            OpenTelemetry collector HTTP endpoint (default: "http://localhost:4318")
-  --format <format>            Output format: otel, elastic, or both (default: "both")
+  --format <format>            Output format: otel, elastic, or both (hosts only) (default: "both")
+  --purge                      Delete existing data streams for the dataset before starting
 ```
 
 ### Example Commands
 
+#### Host Metrics
+
 Generate only OpenTelemetry format metrics:
 ```bash
-./forge --format otel --interval 30s
+./forge --dataset hosts --format otel --interval 30s
 ```
 
 Generate metrics with 1-hour backfill:
 ```bash
-./forge --backfill now-1h --interval 2m
+./forge --dataset hosts --backfill now-1h --interval 2m
 ```
+
+Generate metrics for 25 hosts with custom interval:
+```bash
+./forge --dataset hosts --count 25 --interval 30s
+```
+
+Purge existing data and start fresh:
+```bash
+./forge --dataset hosts --purge --format both
+```
+
+#### Weather Station Data
+
+Generate weather station data with 5 stations:
+```bash
+./forge --dataset weather --count 5 --interval 1m
+```
+
+Generate weather data with 24-hour backfill:
+```bash
+./forge --dataset weather --backfill now-24h --interval 10s
+```
+
+Purge existing weather data and start fresh:
+```bash
+./forge --dataset weather --purge --count 3 --backfill now-12h
+```
+
+#### General Options
 
 Connect to remote Elasticsearch with authentication:
 ```bash
 ./forge --elasticsearch-url https://my-cluster.com:9200 --elasticsearch-auth myuser:mypass
 ```
 
-Generate only Elastic format with custom collector:
+Generate with custom OpenTelemetry collector:
 ```bash
-./forge --format elastic --collector http://otel-collector:4318
-```
-
-Generate metrics for 25 hosts with custom interval:
-```bash
-./forge --count 25 --interval 30s
-```
-
-Generate small-scale test with 3 hosts:
-```bash
-./forge --count 3 --backfill now-30m --interval 1m
+./forge --collector http://otel-collector:4318
 ```
 
 ## Data Formats
+
+### Weather Station Data (FieldSense Format)
+
+Generates comprehensive weather station metrics in FieldSense namespace:
+
+- **Environmental Metrics**: Temperature, humidity, wind, precipitation, pressure, solar radiation, soil conditions
+- **Solar Panel Metrics**: Individual panel voltage, current, power, temperature, and efficiency
+- **Energy Metrics**: Consumption, production, and battery status
+- **System Metrics**: CPU usage, memory, network traffic
+- **Time Series Support**: Proper geo_point coordinates and time series dimensions
+- **Data Stream**: Routes to `fieldsense-station-metrics`
+
+Example document:
+```json
+{
+  "@timestamp": "2025-01-08T15:30:00.000Z",
+  "_metric_names_hash": "def456",
+  "station.id": "station-01",
+  "station.name": "FieldSense Station 01",
+  "station.location.coordinates": {
+    "lat": 40.7128,
+    "lon": -74.0060
+  },
+  "station.location.region": "us-east-1",
+  "sensor.id": "temperature-1",
+  "sensor.type": "temperature",
+  "sensor.location": "ambient",
+  "fieldsense.environmental.temperature.air": 22.5,
+  "fieldsense.environmental.temperature.dewpoint": 18.3
+}
+```
+
+Key features:
+- **Realistic Correlations**: Cloudy weather reduces solar output, temperature affects soil conditions
+- **Smooth Transitions**: Weather changes gradually with proper smoothing algorithms
+- **Geo-spatial Support**: Coordinates stored as geo_point for mapping and spatial queries
+- **Comprehensive Coverage**: 24+ different metric types per station
+- **Time Series Optimized**: Proper dimensions and metric routing for long-term storage
 
 ### OpenTelemetry Format
 
@@ -189,19 +256,24 @@ Example document:
 
 ```
 src/
-├── index.ts                 # Main CLI entry point
-├── tracing.ts              # OpenTelemetry tracing setup
+├── index.ts                      # Main CLI entry point
+├── tracing.ts                   # OpenTelemetry tracing setup
 ├── types/
-│   ├── host-types.ts       # Host and metrics type definitions
-│   └── machine-types.ts    # Cloud machine type specifications
+│   ├── host-types.ts            # Host and metrics type definitions
+│   ├── machine-types.ts         # Cloud machine type specifications
+│   └── weather-types.ts         # Weather station type definitions
 ├── simulators/
-│   ├── host-simulator.ts   # Main simulator orchestrator
-│   ├── host-generator.ts   # Host configuration generator
-│   └── metrics-generator.ts # Realistic metrics generation
+│   ├── host-simulator.ts        # Host metrics simulator orchestrator
+│   ├── host-generator.ts        # Host configuration generator
+│   ├── metrics-generator.ts     # Host metrics generation
+│   ├── weather-simulator.ts     # Weather station simulator orchestrator
+│   ├── weather-generator.ts     # Weather station configuration generator
+│   └── weather-metrics-generator.ts # Weather metrics generation
 └── formatters/
-    ├── base-formatter.ts   # Common formatter functionality
-    ├── otel-formatter.ts   # OpenTelemetry format converter
-    └── elastic-formatter.ts # Elastic Metricbeat format converter
+    ├── base-formatter.ts        # Common formatter functionality
+    ├── otel-formatter.ts        # OpenTelemetry format converter
+    ├── elastic-formatter.ts     # Elastic Metricbeat format converter
+    └── fieldsense-formatter.ts  # FieldSense weather format converter
 ```
 
 ### Available Scripts
@@ -228,12 +300,37 @@ npm run build
 ./forge --help
 ```
 
+### Development Workflow
+
+When making schema changes or testing new features, use the `--purge` option to delete existing data streams and start fresh:
+
+```bash
+# Purge and restart with hosts data
+./forge --dataset hosts --purge --format both
+
+# Purge and restart with weather data
+./forge --dataset weather --purge --count 3 --backfill now-6h
+
+# Purge specific format for hosts
+./forge --dataset hosts --format otel --purge
+```
+
+This ensures clean data streams with updated mappings and templates.
+
 ### Adding New Metrics
 
+#### For Host Metrics:
 1. Update `HostMetrics` interface in `src/types/host-types.ts`
 2. Implement generation logic in `src/simulators/metrics-generator.ts`
 3. Add formatting logic to both `src/formatters/otel-formatter.ts` and `src/formatters/elastic-formatter.ts`
 4. Test with both formats: `--format both`
+
+#### For Weather Station Metrics:
+1. Update `WeatherStationMetrics` interface in `src/types/weather-types.ts`
+2. Implement generation logic in `src/simulators/weather-metrics-generator.ts`
+3. Add formatting logic to `src/formatters/fieldsense-formatter.ts`
+4. Update Elasticsearch mappings in `src/simulators/weather-simulator.ts`
+5. Test with: `--dataset weather --purge`
 
 ### Host Configuration
 
