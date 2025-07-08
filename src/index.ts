@@ -6,8 +6,71 @@ import { HostSimulator } from './simulators/host-simulator';
 import { WeatherSimulator } from './simulators/weather-simulator';
 import { simianLogger } from './logger';
 import { trace } from '@opentelemetry/api';
+import { Client } from '@elastic/elasticsearch';
 
 const tracer = trace.getTracer('simian-forge');
+
+async function purgeDataStreams(elasticsearchUrl: string, elasticsearchAuth: string, dataset: string, format?: string): Promise<void> {
+  return tracer.startActiveSpan('purgeDataStreams', async (span) => {
+    try {
+      const clientConfig: any = {
+        node: elasticsearchUrl
+      };
+
+      if (elasticsearchAuth) {
+        const [username, password] = elasticsearchAuth.split(':');
+        clientConfig.auth = { username, password };
+      }
+
+      const client = new Client(clientConfig);
+
+      const dataStreamsToDelete: string[] = [];
+
+      if (dataset === 'hosts') {
+        if (format === 'otel' || format === 'both') {
+          dataStreamsToDelete.push('metrics-hostmetricsreceiver.otel-default');
+        }
+        if (format === 'elastic' || format === 'both') {
+          dataStreamsToDelete.push('metrics-system.cpu-default');
+          dataStreamsToDelete.push('metrics-system.load-default');
+          dataStreamsToDelete.push('metrics-system.memory-default');
+          dataStreamsToDelete.push('metrics-system.network-default');
+          dataStreamsToDelete.push('metrics-system.diskio-default');
+          dataStreamsToDelete.push('metrics-system.filesystem-default');
+        }
+      } else if (dataset === 'weather') {
+        dataStreamsToDelete.push('fieldsense-station-metrics');
+      }
+
+      console.log(`Purging data streams for dataset '${dataset}'...`);
+
+      for (const dataStream of dataStreamsToDelete) {
+        try {
+          await client.indices.deleteDataStream({
+            name: dataStream
+          });
+          console.log(`✓ Deleted data stream: ${dataStream}`);
+        } catch (error: any) {
+          if (error.meta?.statusCode === 404) {
+            console.log(`- Data stream not found (already deleted): ${dataStream}`);
+          } else {
+            console.warn(`⚠ Failed to delete data stream ${dataStream}:`, error.message);
+          }
+        }
+      }
+
+      console.log('Data stream purge completed.');
+      span.setStatus({ code: 1 });
+    } catch (error) {
+      console.error('Error during data stream purge:', error);
+      span.recordException(error as Error);
+      span.setStatus({ code: 2, message: (error as Error).message });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
+}
 
 async function main() {
   return tracer.startActiveSpan('main', async (span) => {
@@ -27,7 +90,8 @@ async function main() {
         .option('--elasticsearch-url <url>', 'Elasticsearch cluster URL', 'http://localhost:9200')
         .option('--elasticsearch-auth <auth>', 'Elasticsearch auth in username:password format', 'elastic:changeme')
         .option('--collector <url>', 'OpenTelemetry collector HTTP endpoint', 'http://localhost:4318')
-        .option('--format <format>', 'Output format: otel, elastic, or both', 'both');
+        .option('--format <format>', 'Output format: otel, elastic, or both', 'both')
+        .option('--purge', 'Delete existing data streams for the dataset before starting');
 
       program.parse();
       const options = program.opts();
@@ -61,8 +125,14 @@ async function main() {
         dataset: options.dataset,
         elasticsearchUrl: options.elasticsearchUrl,
         format: options.format,
-        collector: options.collector
+        collector: options.collector,
+        purge: options.purge
       });
+
+      // Handle purge if requested
+      if (options.purge) {
+        await purgeDataStreams(options.elasticsearchUrl, options.elasticsearchAuth, options.dataset, options.format);
+      }
 
       // Create and start the appropriate simulator
       let simulator: HostSimulator | WeatherSimulator;
