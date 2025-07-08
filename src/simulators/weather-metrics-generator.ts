@@ -8,6 +8,16 @@ export class WeatherMetricsGenerator {
   private counters: Map<string, WeatherCounterState> = new Map();
   private previousMetrics: Map<string, WeatherStationMetrics> = new Map();
 
+  private smoothValue(target: number, previous: number | undefined, maxChange: number, noise: number): number {
+    if (previous === undefined) {
+      return target + noise;
+    }
+    
+    const change = target - previous;
+    const limitedChange = Math.max(-maxChange, Math.min(maxChange, change));
+    return previous + limitedChange + noise;
+  }
+
   generateMetrics(station: WeatherStationConfig, timestamp: Date): WeatherStationMetrics {
     return tracer.startActiveSpan('generateMetrics', (span) => {
       try {
@@ -18,7 +28,7 @@ export class WeatherMetricsGenerator {
         const prevMetrics = this.previousMetrics.get(station.id);
 
         const weatherCondition = this.generateWeatherCondition(rng, timestamp);
-        const environmental = this.generateEnvironmentalMetrics(station, rng, weatherCondition, timestamp);
+        const environmental = this.generateEnvironmentalMetrics(station, rng, weatherCondition, timestamp, prevMetrics);
         const solar = this.generateSolarMetrics(station, rng, weatherCondition, environmental);
         const energy = this.generateEnergyMetrics(station, rng, solar, environmental);
         const compute = this.generateComputeMetrics(station, rng, energy);
@@ -97,7 +107,8 @@ export class WeatherMetricsGenerator {
     station: WeatherStationConfig, 
     rng: () => number, 
     weather: WeatherCondition,
-    timestamp: Date
+    timestamp: Date,
+    prevMetrics?: WeatherStationMetrics
   ): EnvironmentalMetrics {
     const hour = timestamp.getHours();
     const season = this.getSeason(timestamp);
@@ -106,19 +117,53 @@ export class WeatherMetricsGenerator {
     const dailyTempVariation = this.getDailyTemperatureVariation(hour);
     const weatherTempAdjustment = this.getWeatherTemperatureAdjustment(weather.condition);
     
-    const airTemp = baseTemp + dailyTempVariation + weatherTempAdjustment + (rng() - 0.5) * 4;
-    const soilTemp = airTemp - 2 + (rng() - 0.5) * 2;
+    const targetAirTemp = baseTemp + dailyTempVariation + weatherTempAdjustment;
+    const airTemp = this.smoothValue(
+      targetAirTemp, 
+      prevMetrics?.environmental.temperature.air, 
+      0.02, // Maximum change per interval (0.02°C = 1.2°C/hour)
+      (rng() - 0.5) * 0.05 // Very small random noise
+    );
+    
+    const targetSoilTemp = airTemp - 2;
+    const soilTemp = this.smoothValue(
+      targetSoilTemp,
+      prevMetrics?.environmental.temperature.soil,
+      0.01, // Soil changes very slowly (0.6°C/hour max)
+      (rng() - 0.5) * 0.02
+    );
     
     const baseHumidity = this.getWeatherHumidity(weather.condition, rng);
-    const relativeHumidity = Math.max(10, Math.min(100, baseHumidity + (rng() - 0.5) * 10));
+    const targetHumidity = Math.max(10, Math.min(100, baseHumidity));
+    const relativeHumidity = this.smoothValue(
+      targetHumidity,
+      prevMetrics?.environmental.humidity.relative,
+      0.5, // Maximum 0.5% change per interval
+      (rng() - 0.5) * 0.1
+    );
     
-    const windSpeed = this.getWeatherWindSpeed(weather.condition, rng);
-    const windDirection = rng() * 360;
+    const targetWindSpeed = this.getWeatherWindSpeed(weather.condition, rng);
+    const windSpeed = this.smoothValue(
+      targetWindSpeed,
+      prevMetrics?.environmental.wind.speed,
+      0.2, // Maximum 0.2 m/s change per interval
+      (rng() - 0.5) * 0.05
+    );
+    
+    // Wind direction can change more freely but still smooth
+    const prevWindDir = prevMetrics?.environmental.wind.direction || rng() * 360;
+    const windDirection = this.smoothValue(prevWindDir, prevWindDir, 3, (rng() - 0.5) * 1);
     
     const precipitationRate = this.getPrecipitationRate(weather.condition, rng);
     const precipitationAccumulated = this.getAccumulatedPrecipitation(station.id, precipitationRate);
     
-    const barometricPressure = 1013.25 - (station.location.altitude * 0.12) + (rng() - 0.5) * 20;
+    const basePressure = 1013.25 - (station.location.altitude * 0.12);
+    const barometricPressure = this.smoothValue(
+      basePressure,
+      prevMetrics?.environmental.pressure.barometric,
+      0.2, // Maximum 0.2 hPa change per interval
+      (rng() - 0.5) * 0.1
+    );
     const solarRadiation = this.getSolarRadiation(hour, weather.cloudCover, season, rng);
     
     const soilMoisture = this.getSoilMoisture(precipitationRate, solarRadiation, rng);
@@ -131,7 +176,7 @@ export class WeatherMetricsGenerator {
         dewPoint: this.calculateDewPoint(airTemp, relativeHumidity)
       },
       humidity: {
-        relative: relativeHumidity,
+        relative: relativeHumidity / 100,
         absolute: this.calculateAbsoluteHumidity(airTemp, relativeHumidity)
       },
       wind: {
@@ -152,11 +197,11 @@ export class WeatherMetricsGenerator {
         uv: solarRadiation * 0.05
       },
       soil: {
-        moisture: soilMoisture,
+        moisture: soilMoisture / 100,
         temperature: soilTemp
       },
       leaf: {
-        wetness: leafWetness
+        wetness: leafWetness / 100
       }
     };
   }
@@ -173,7 +218,7 @@ export class WeatherMetricsGenerator {
 
     for (const panelConfig of station.solarPanels) {
       const irradiance = environmental.radiation.solar;
-      const efficiency = panelConfig.efficiency * (1 - (rng() - 0.5) * 0.02);
+      const efficiency = panelConfig.efficiency * (1 - (rng() - 0.5) * 0.005);
       const temperatureDerating = 1 - (Math.max(0, environmental.temperature.air - 25) * 0.004);
       
       const maxPower = panelConfig.wattage * efficiency * temperatureDerating;
@@ -188,7 +233,7 @@ export class WeatherMetricsGenerator {
         current,
         power: actualPower,
         temperature: environmental.temperature.air + (actualPower / panelConfig.wattage) * 10,
-        efficiency: efficiency * 100
+        efficiency: efficiency
       };
 
       panels.push(panelMetrics);
@@ -218,7 +263,7 @@ export class WeatherMetricsGenerator {
     
     const totalConsumption = baseSensorConsumption + computeConsumption + communicationConsumption;
     
-    const batteryVoltage = 12 + (rng() - 0.5) * 1;
+    const batteryVoltage = 12 + (rng() - 0.5) * 0.2;
     const batteryChargeLevel = Math.max(20, Math.min(100, 60 + (solar.total.currentPower - totalConsumption) * 2));
     
     return {
@@ -234,7 +279,7 @@ export class WeatherMetricsGenerator {
       battery: {
         voltage: batteryVoltage,
         current: (solar.total.currentPower - totalConsumption) / batteryVoltage,
-        chargeLevel: batteryChargeLevel,
+        chargeLevel: batteryChargeLevel / 100,
         temperature: environmental.temperature.air + 2
       }
     };
@@ -249,20 +294,20 @@ export class WeatherMetricsGenerator {
     const loadAdjustment = energy.consumption.total > 10 ? 20 : 0;
     const cpuUsage = Math.min(100, baseUsage + loadAdjustment);
     
-    const cpuTemp = 35 + (cpuUsage / 100) * 25 + (rng() - 0.5) * 5;
+    const cpuTemp = 35 + (cpuUsage / 100) * 25 + (rng() - 0.5) * 2;
     
-    const memoryUsedPercent = 30 + (cpuUsage / 100) * 40 + (rng() - 0.5) * 10;
+    const memoryUsedPercent = 30 + (cpuUsage / 100) * 40 + (rng() - 0.5) * 3;
     const memoryUsedMB = (station.computeHost.memoryMB * memoryUsedPercent) / 100;
     
     return {
       cpu: {
-        usage: cpuUsage,
+        usage: cpuUsage / 100,
         temperature: cpuTemp,
         states: {
-          user: cpuUsage * 0.6,
-          system: cpuUsage * 0.3,
-          idle: 100 - cpuUsage,
-          wait: cpuUsage * 0.1
+          user: (cpuUsage * 0.6) / 100,
+          system: (cpuUsage * 0.3) / 100,
+          idle: (100 - cpuUsage) / 100,
+          wait: (cpuUsage * 0.1) / 100
         }
       },
       memory: {
@@ -270,7 +315,7 @@ export class WeatherMetricsGenerator {
         used: memoryUsedMB * 1024 * 1024,
         free: (station.computeHost.memoryMB - memoryUsedMB) * 1024 * 1024,
         cached: memoryUsedMB * 0.2 * 1024 * 1024,
-        usagePercent: memoryUsedPercent
+        usagePercent: memoryUsedPercent / 100
       }
     };
   }
@@ -280,7 +325,7 @@ export class WeatherMetricsGenerator {
     rng: () => number,
     counters: WeatherCounterState
   ): NetworkMetrics {
-    const signal = -60 + (rng() - 0.5) * 30;
+    const signal = -60 + (rng() - 0.5) * 10;
     const rssi = signal - 10;
     
     const technologies = ['LTE', '5G', '4G', '3G'];
@@ -379,7 +424,7 @@ export class WeatherMetricsGenerator {
       'snow': 0.85,
       'fog': 0.7
     };
-    return Math.min(1, (cloudCover[condition] || 0.5) + (rng() - 0.5) * 0.2);
+    return Math.min(1, (cloudCover[condition] || 0.5) + (rng() - 0.5) * 0.05);
   }
 
   private getVisibility(condition: string, rng: () => number): number {
@@ -392,7 +437,7 @@ export class WeatherMetricsGenerator {
       'snow': 1,
       'fog': 0.5
     };
-    return Math.max(0.1, (visibility[condition] || 10) + (rng() - 0.5) * 5);
+    return Math.max(0.1, (visibility[condition] || 10) + (rng() - 0.5) * 2);
   }
 
   private getWeatherHumidity(condition: string, rng: () => number): number {
@@ -405,7 +450,7 @@ export class WeatherMetricsGenerator {
       'snow': 85,
       'fog': 95
     };
-    return Math.min(100, Math.max(10, humidity[condition] + (rng() - 0.5) * 20));
+    return Math.min(100, Math.max(10, humidity[condition] + (rng() - 0.5) * 5));
   }
 
   private getWeatherWindSpeed(condition: string, rng: () => number): number {
@@ -418,7 +463,7 @@ export class WeatherMetricsGenerator {
       'snow': 15,
       'fog': 1
     };
-    return Math.max(0, windSpeed[condition] + (rng() - 0.5) * 5);
+    return Math.max(0, windSpeed[condition] + (rng() - 0.5) * 2);
   }
 
   private getPrecipitationRate(condition: string, rng: () => number): number {
@@ -441,11 +486,11 @@ export class WeatherMetricsGenerator {
     const hourlyFactor = Math.sin(((hour - 6) / 12) * Math.PI);
     const baseRadiation = maxRadiation * hourlyFactor;
     
-    return Math.max(0, baseRadiation * (1 - cloudCover) + (rng() - 0.5) * 50);
+    return Math.max(0, baseRadiation * (1 - cloudCover) + (rng() - 0.5) * 20);
   }
 
   private getSoilMoisture(precipitationRate: number, solarRadiation: number, rng: () => number): number {
-    const baseOil = 30 + (rng() - 0.5) * 10;
+    const baseOil = 30 + (rng() - 0.5) * 3;
     const precipitationEffect = precipitationRate * 5;
     const evaporationEffect = solarRadiation * 0.01;
     
@@ -456,7 +501,7 @@ export class WeatherMetricsGenerator {
     const baseWetness = (humidity - 50) * 0.5;
     const precipitationEffect = precipitationRate * 10;
     
-    return Math.max(0, Math.min(100, baseWetness + precipitationEffect + (rng() - 0.5) * 10));
+    return Math.max(0, Math.min(100, baseWetness + precipitationEffect + (rng() - 0.5) * 3));
   }
 
   private getAccumulatedPrecipitation(stationId: string, currentRate: number): number {
