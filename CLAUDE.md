@@ -39,8 +39,16 @@ Requirements:
 ## Development Preferences
 - Follow existing code conventions and patterns
 - Use appropriate testing frameworks when available
+- **CRITICAL**: ALWAYS run `npm run build` after EVERY code change to catch TypeScript errors immediately
 - Run lint and typecheck commands before completing tasks
 - Be concise in responses unless detail is requested
+
+## Development Workflow
+**MANDATORY AFTER EVERY CODE CHANGE:**
+1. Run `npm run build` immediately after any file modification
+2. Fix any TypeScript compilation errors before proceeding
+3. Never assume code works without building first
+4. This prevents wasting time debugging when the real issue is compilation errors
 
 ## Common Commands
 - `npm run build` - Compile TypeScript to JavaScript
@@ -52,9 +60,11 @@ Requirements:
 
 ### Making Changes
 1. Make code changes to implement features or fix issues
-2. Build and test: `npm run build && npm run test-logger`
-3. **CRITICAL**: Before committing changes, ALWAYS run `npm run build` to verify changes compile successfully
-4. Add files: `git add <files>`
+2. **MANDATORY**: Run `npm run build` immediately after EVERY code change
+3. Fix any TypeScript compilation errors before proceeding
+4. Build and test: `npm run build && npm run test-logger`
+5. **CRITICAL**: Before committing changes, ALWAYS run `npm run build` to verify changes compile successfully
+6. Add files: `git add <files>`
 4. When user says "Commit changes", create commit AND push automatically:
    ```bash
    git commit -m "$(cat <<'EOF'

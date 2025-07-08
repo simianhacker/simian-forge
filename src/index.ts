@@ -3,6 +3,7 @@
 import { Command } from 'commander';
 import { initializeTracing } from './tracing';
 import { HostSimulator } from './simulators/host-simulator';
+import { WeatherSimulator } from './simulators/weather-simulator';
 import { simianLogger } from './logger';
 import { trace } from '@opentelemetry/api';
 
@@ -38,12 +39,12 @@ async function main() {
       simianLogger.initializeElasticsearch(options.elasticsearchUrl, options.elasticsearchAuth);
 
       // Validate dataset
-      if (options.dataset !== 'hosts') {
-        throw new Error(`Unsupported dataset: ${options.dataset}. Currently only 'hosts' is supported.`);
+      if (!['hosts', 'weather'].includes(options.dataset)) {
+        throw new Error(`Unsupported dataset: ${options.dataset}. Supported datasets: 'hosts', 'weather'.`);
       }
 
-      // Validate format
-      if (!['otel', 'elastic', 'both'].includes(options.format)) {
+      // Validate format (only for hosts dataset)
+      if (options.dataset === 'hosts' && !['otel', 'elastic', 'both'].includes(options.format)) {
         throw new Error(`Invalid format: ${options.format}. Must be 'otel', 'elastic', or 'both'.`);
       }
 
@@ -63,15 +64,29 @@ async function main() {
         collector: options.collector
       });
 
-      // Create and start the host simulator
-      const simulator = new HostSimulator({
-        interval: options.interval,
-        backfill: options.backfill,
-        count: count,
-        elasticsearchUrl: options.elasticsearchUrl,
-        elasticsearchAuth: options.elasticsearchAuth,
-        format: options.format as 'otel' | 'elastic' | 'both'
-      });
+      // Create and start the appropriate simulator
+      let simulator: HostSimulator | WeatherSimulator;
+      
+      if (options.dataset === 'hosts') {
+        simulator = new HostSimulator({
+          interval: options.interval,
+          backfill: options.backfill,
+          count: count,
+          elasticsearchUrl: options.elasticsearchUrl,
+          elasticsearchAuth: options.elasticsearchAuth,
+          format: options.format as 'otel' | 'elastic' | 'both'
+        });
+      } else if (options.dataset === 'weather') {
+        simulator = new WeatherSimulator({
+          interval: options.interval,
+          backfill: options.backfill,
+          count: count,
+          elasticsearchUrl: options.elasticsearchUrl,
+          elasticsearchAuth: options.elasticsearchAuth
+        });
+      } else {
+        throw new Error(`Unsupported dataset: ${options.dataset}`);
+      }
 
       await simulator.start();
       
