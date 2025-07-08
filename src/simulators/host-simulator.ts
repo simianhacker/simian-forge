@@ -275,18 +275,51 @@ export class HostSimulator {
   }
 
   private parseBackfill(backfill: string): Date {
-    // Use moment to parse date math expressions like "now-1h"
     if (backfill.startsWith('now-')) {
       const duration = backfill.substring(4);
-      return moment().subtract(moment.duration(duration)).toDate();
+      console.log(`Parsing duration: '${duration}'`);
+      
+      // Parse duration manually since moment.duration doesn't handle our format
+      const match = duration.match(/^(\d+)([smhd])$/);
+      if (!match) {
+        throw new Error(`Invalid duration format: ${duration}. Expected format: {number}{s|m|h|d}`);
+      }
+      
+      const value = parseInt(match[1]);
+      const unit = match[2];
+      
+      let result: moment.Moment;
+      switch (unit) {
+        case 's':
+          result = moment().subtract(value, 'seconds');
+          break;
+        case 'm':
+          result = moment().subtract(value, 'minutes');
+          break;
+        case 'h':
+          result = moment().subtract(value, 'hours');
+          break;
+        case 'd':
+          result = moment().subtract(value, 'days');
+          break;
+        default:
+          throw new Error(`Unsupported time unit: ${unit}`);
+      }
+      
+      console.log(`Parsed backfill '${backfill}' to: ${result.toISOString()}`);
+      return result.toDate();
     } else if (backfill === 'now') {
-      return moment().toDate();
+      const result = moment().toDate();
+      console.log(`Parsed backfill '${backfill}' to: ${result.toISOString()}`);
+      return result;
     } else {
       const parsed = moment(backfill);
       if (!parsed.isValid()) {
         throw new Error(`Invalid backfill format: ${backfill}`);
       }
-      return parsed.toDate();
+      const result = parsed.toDate();
+      console.log(`Parsed backfill '${backfill}' to: ${result.toISOString()}`);
+      return result;
     }
   }
 
