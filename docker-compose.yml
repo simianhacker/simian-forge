@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   simian-forge:
     build: .
@@ -12,9 +10,9 @@ services:
       "--interval", "${INTERVAL:-10s}",
       "--backfill", "${BACKFILL:-now-5m}",
       "--count", "${COUNT:-10}",
-      "--dataset", "${DATASET:-hosts}",
+      "--dataset", "${DATASET:-weather}",
       "--elasticsearch-url", "${ELASTICSEARCH_URL:-http://elasticsearch:9200}",
-      "--elasticsearch-auth", "${ELASTICSEARCH_AUTH:-elastic:changeme}",
+      "--elasticsearch-auth", "${ELASTICSEARCH_AUTH:-}",
       "--collector", "${COLLECTOR:-http://otel-collector:4318}",
       "--format", "${FORMAT:-both}"
     ]
@@ -29,14 +27,13 @@ services:
       - full-stack
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.0.3
     container_name: elasticsearch
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - xpack.security.enrollment.enabled=false
       - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
-      - ELASTIC_PASSWORD=changeme
     ports:
       - "${ELASTICSEARCH_PORT:-9200}:9200"
     volumes:
@@ -53,12 +50,11 @@ services:
       - full-stack
 
   kibana:
-    image: docker.elastic.co/kibana/kibana:8.13.0
+    image: docker.elastic.co/kibana/kibana:9.0.3
     container_name: kibana
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-      - ELASTICSEARCH_USERNAME=elastic
-      - ELASTICSEARCH_PASSWORD=changeme
+      - ELASTICSEARCH_SECURITY_ENABLED=false
     ports:
       - "${KIBANA_PORT:-5601}:5601"
     depends_on:

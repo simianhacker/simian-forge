@@ -15,6 +15,7 @@ processors:
   memory_limiter:
     limit_mib: 512
     spike_limit_mib: 128
+    check_interval: 5s
 
   resource:
     attributes:
@@ -35,7 +36,6 @@ exporters:
   # Export logs to Elasticsearch
   elasticsearch/logs:
     endpoints: ["http://elasticsearch:9200"]
-    logs_index: logs-simian-forge
     mapping:
       mode: ecs
     logs_dynamic_index:

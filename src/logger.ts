@@ -51,14 +51,19 @@ class SimianLogger {
   }
 
   public initializeElasticsearch(url: string, auth: string): void {
-    const [username, password] = auth.split(':');
-    this.elasticsearchClient = new Client({
-      node: url,
-      auth: {
+    const clientConfig: any = {
+      node: url
+    };
+    
+    if (auth && auth.includes(':')) {
+      const [username, password] = auth.split(':');
+      clientConfig.auth = {
         username,
         password
-      }
-    });
+      };
+    }
+    
+    this.elasticsearchClient = new Client(clientConfig);
 
     // Start periodic flushing
     this.flushInterval = setInterval(() => {
