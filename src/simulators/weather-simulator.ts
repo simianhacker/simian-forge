@@ -145,7 +145,7 @@ export class WeatherSimulator {
               'fieldsense.environmental.wind.direction': { type: 'double', time_series_metric: 'gauge', meta: { description: 'Wind direction in degrees' } },
               'fieldsense.environmental.wind.gust': { type: 'double', time_series_metric: 'gauge', meta: { description: 'Wind gust speed in m/s' } },
               'fieldsense.environmental.precipitation.rate': { type: 'double', time_series_metric: 'gauge', meta: { description: 'Precipitation rate in mm/h' } },
-              'fieldsense.environmental.precipitation.accumulated': { type: 'double', time_series_metric: 'counter', meta: { description: 'Accumulated precipitation in mm' } },
+              'fieldsense.environmental.precipitation.accumulated': { type: 'double', time_series_metric: 'counter', meta: { description: 'Accumulated precipitation in mm', display: 'bar' } },
               'fieldsense.environmental.pressure.barometric': { type: 'double', time_series_metric: 'gauge', meta: { description: 'Barometric pressure in hPa' } },
               'fieldsense.environmental.pressure.sea_level': { type: 'double', time_series_metric: 'gauge', meta: { description: 'Sea level pressure in hPa' } },
               'fieldsense.environmental.radiation.solar': { type: 'double', time_series_metric: 'gauge', meta: { description: 'Solar radiation in W/m²' } },
