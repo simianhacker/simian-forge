@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { initializeTracing } from './tracing';
 import { HostSimulator } from './simulators/host-simulator';
 import { WeatherSimulator } from './simulators/weather-simulator';
+import { UniqueMetricsSimulator } from './simulators/unique-metrics-simulator';
 import { simianLogger } from './logger';
 import { trace } from '@opentelemetry/api';
 import { Client } from '@elastic/elasticsearch';
@@ -11,7 +12,7 @@ import { createElasticsearchClient } from './utils/elasticsearch-client';
 
 const tracer = trace.getTracer('simian-forge');
 
-async function purgeDataStreams(elasticsearchUrl: string, elasticsearchAuth: string, elasticsearchApiKey: string, dataset: string, format?: string): Promise<void> {
+async function purgeDataStreams(elasticsearchUrl: string, elasticsearchAuth: string, elasticsearchApiKey: string, dataset: string, format?: string, count?: number): Promise<void> {
   return tracer.startActiveSpan('purgeDataStreams', async (span) => {
     try {
       const client = createElasticsearchClient({
@@ -36,6 +37,12 @@ async function purgeDataStreams(elasticsearchUrl: string, elasticsearchAuth: str
         }
       } else if (dataset === 'weather') {
         dataStreamsToDelete.push('fieldsense-station-metrics');
+      } else if (dataset === 'unique-metrics') {
+        // Calculate how many indices we need based on count (500 metrics per index)
+        const numIndices = Math.ceil((count || 10) / 500);
+        for (let i = 1; i <= numIndices; i++) {
+          dataStreamsToDelete.push(`metrics-uniquemetrics${i}.otel-default`);
+        }
       }
 
       console.log(`Purging data streams for dataset '${dataset}'...`);
@@ -100,8 +107,8 @@ async function main() {
       simianLogger.initializeElasticsearch(options.elasticsearchUrl, options.elasticsearchAuth, options.elasticsearchApiKey);
 
       // Validate dataset
-      if (!['hosts', 'weather'].includes(options.dataset)) {
-        throw new Error(`Unsupported dataset: ${options.dataset}. Supported datasets: 'hosts', 'weather'.`);
+      if (!['hosts', 'weather', 'unique-metrics'].includes(options.dataset)) {
+        throw new Error(`Unsupported dataset: ${options.dataset}. Supported datasets: 'hosts', 'weather', 'unique-metrics'.`);
       }
 
       // Validate format (only for hosts dataset)
@@ -128,11 +135,11 @@ async function main() {
 
       // Handle purge if requested
       if (options.purge) {
-        await purgeDataStreams(options.elasticsearchUrl, options.elasticsearchAuth, options.elasticsearchApiKey, options.dataset, options.format);
+        await purgeDataStreams(options.elasticsearchUrl, options.elasticsearchAuth, options.elasticsearchApiKey, options.dataset, options.format, count);
       }
 
       // Create and start the appropriate simulator
-      let simulator: HostSimulator | WeatherSimulator;
+      let simulator: HostSimulator | WeatherSimulator | UniqueMetricsSimulator;
       
       if (options.dataset === 'hosts') {
         simulator = new HostSimulator({
@@ -146,6 +153,15 @@ async function main() {
         });
       } else if (options.dataset === 'weather') {
         simulator = new WeatherSimulator({
+          interval: options.interval,
+          backfill: options.backfill,
+          count: count,
+          elasticsearchUrl: options.elasticsearchUrl,
+          elasticsearchAuth: options.elasticsearchAuth,
+          elasticsearchApiKey: options.elasticsearchApiKey
+        });
+      } else if (options.dataset === 'unique-metrics') {
+        simulator = new UniqueMetricsSimulator({
           interval: options.interval,
           backfill: options.backfill,
           count: count,
