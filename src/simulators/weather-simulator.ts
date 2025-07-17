@@ -1,78 +1,59 @@
-import { WeatherStationGenerator } from './weather-generator';
-import { WeatherMetricsGenerator } from './weather-metrics-generator';
+import { BaseSimulator } from './base-simulator';
+import { WeatherStationConfigGenerator } from './weather-config-generator';
+import { WeatherStationMetricsGenerator } from './weather-station-metrics-generator';
 import { FieldSenseFormatter, FieldSenseDocument } from '../formatters/fieldsense-formatter';
-import { Client } from '@elastic/elasticsearch';
+import { WeatherStationConfig, WeatherStationMetrics } from '../types/weather-types';
+import { BaseSimulatorOptions, ConfigGenerator, MetricsGenerator, FormatterResult } from '../types/simulator-types';
 import { trace } from '@opentelemetry/api';
-import moment from 'moment';
-import { createElasticsearchClient } from '../utils/elasticsearch-client';
 
 const tracer = trace.getTracer('simian-forge');
 
-export interface WeatherSimulatorOptions {
-  interval: string;
-  backfill: string;
-  count: number;
-  elasticsearchUrl: string;
-  elasticsearchAuth?: string;
-  elasticsearchApiKey?: string;
-}
-
-export class WeatherSimulator {
-  private stationGenerator: WeatherStationGenerator;
-  private metricsGenerator: WeatherMetricsGenerator;
+export class WeatherSimulator extends BaseSimulator<WeatherStationConfig, WeatherStationMetrics, FieldSenseDocument> {
   private fieldsenseFormatter: FieldSenseFormatter;
-  private elasticsearchClient: Client;
-  private intervalMs: number;
-  private backfillStart: Date;
-  private stationIds: string[] = [];
-  private isRunning: boolean = false;
 
-  constructor(private options: WeatherSimulatorOptions) {
-    this.stationGenerator = new WeatherStationGenerator();
-    this.metricsGenerator = new WeatherMetricsGenerator();
+  constructor(options: BaseSimulatorOptions) {
+    super(options);
     this.fieldsenseFormatter = new FieldSenseFormatter();
-
-    this.intervalMs = this.parseInterval(options.interval);
-    this.backfillStart = this.parseBackfill(options.backfill);
-    this.stationIds = this.generateStationIds();
-
-    this.elasticsearchClient = createElasticsearchClient({
-      url: options.elasticsearchUrl,
-      auth: options.elasticsearchAuth,
-      apiKey: options.elasticsearchApiKey
-    });
   }
 
-  async start(): Promise<void> {
-    return tracer.startActiveSpan('start', async (span) => {
-      try {
-        this.isRunning = true;
+  protected createConfigGenerator(): ConfigGenerator<WeatherStationConfig> {
+    return new WeatherStationConfigGenerator();
+  }
 
-        console.log(`Starting weather station simulator with ${this.stationIds.length} stations`);
-        console.log(`Backfilling from ${this.backfillStart.toISOString()}`);
-        console.log(`Interval: ${this.options.interval} (${this.intervalMs}ms)`);
+  protected createMetricsGenerator(): MetricsGenerator<WeatherStationConfig, WeatherStationMetrics> {
+    return new WeatherStationMetricsGenerator();
+  }
 
-        await this.setupElasticsearchTemplates();
-        await this.backfillData();
-        await this.startRealTimeGeneration();
+  protected formatMetrics(metrics: WeatherStationMetrics): FormatterResult<FieldSenseDocument>[] {
+    const fieldsenseDocs = this.fieldsenseFormatter.formatMetrics(metrics);
+    return [{ documents: fieldsenseDocs, format: 'fieldsense' }];
+  }
 
-        span.setStatus({ code: 1 });
-      } catch (error) {
-        console.error('Error in weather station simulator:', error);
-        span.recordException(error as Error);
-        span.setStatus({ code: 2, message: (error as Error).message });
-        throw error;
-      } finally {
-        span.end();
+  protected getIndexName(document: FieldSenseDocument, format: string): string {
+    return 'fieldsense-station-metrics';
+  }
+
+  protected getCreateOperation(document: FieldSenseDocument, format: string, indexName: string): any {
+    return {
+      create: {
+        _index: indexName
       }
-    });
+    };
   }
 
-  stop(): void {
-    this.isRunning = false;
+  protected getSimulatorName(): string {
+    return 'weather station simulator';
   }
 
-  private async setupElasticsearchTemplates(): Promise<void> {
+  protected getEntityIdPrefix(): string {
+    return 'station';
+  }
+
+  protected getProgressLogInterval(): number {
+    return 50; // Override to log every 50 documents for weather
+  }
+
+  protected async setupElasticsearchTemplates(): Promise<void> {
     return tracer.startActiveSpan('setupElasticsearchTemplates', async (span) => {
       try {
         console.log('Setting up Elasticsearch templates for weather stations...');
@@ -228,212 +209,5 @@ export class WeatherSimulator {
       composed_of: ['fieldsense-weather-mappings', 'fieldsense-weather-settings'],
       priority: 200
     };
-  }
-
-  private async backfillData(): Promise<void> {
-    return tracer.startActiveSpan('backfillData', async (span) => {
-      try {
-        const now = new Date();
-        const current = new Date(this.backfillStart);
-        let totalDocuments = 0;
-
-        console.log('Starting weather station backfill...');
-
-        while (current < now && this.isRunning) {
-          const timestampForThisInterval = new Date(current);
-
-          console.log(`Generating metrics for timestamp: ${timestampForThisInterval.toISOString()}`);
-
-          // Generate metrics for all stations at this timestamp
-          for (const stationId of this.stationIds) {
-            await this.generateAndSendMetrics(stationId, timestampForThisInterval);
-          }
-
-          totalDocuments += this.stationIds.length;
-
-          // Move to next interval
-          current.setTime(current.getTime() + this.intervalMs);
-
-          if (totalDocuments % 50 === 0) {
-            console.log(`Backfilled ${totalDocuments} weather metric sets, current time: ${current.toISOString()}`);
-          }
-        }
-
-        console.log(`Weather station backfill complete. Generated ${totalDocuments} metric sets`);
-        span.setStatus({ code: 1 });
-      } catch (error) {
-        span.recordException(error as Error);
-        span.setStatus({ code: 2, message: (error as Error).message });
-        throw error;
-      } finally {
-        span.end();
-      }
-    });
-  }
-
-  private async startRealTimeGeneration(): Promise<void> {
-    return tracer.startActiveSpan('startRealTimeGeneration', async (span) => {
-      try {
-        console.log('Starting real-time weather metric generation...');
-
-        const generateMetrics = async () => {
-          if (!this.isRunning) return;
-
-          const timestamp = new Date();
-          const promises: Promise<void>[] = [];
-
-          for (const stationId of this.stationIds) {
-            promises.push(this.generateAndSendMetrics(stationId, timestamp));
-          }
-
-          await Promise.all(promises);
-          console.log(`Generated weather metrics for ${this.stationIds.length} stations at ${timestamp.toISOString()}`);
-
-          setTimeout(generateMetrics, this.intervalMs);
-        };
-
-        await generateMetrics();
-        span.setStatus({ code: 1 });
-      } catch (error) {
-        span.recordException(error as Error);
-        span.setStatus({ code: 2, message: (error as Error).message });
-        throw error;
-      } finally {
-        span.end();
-      }
-    });
-  }
-
-  private async generateAndSendMetrics(stationId: string, timestamp: Date): Promise<void> {
-    return tracer.startActiveSpan('generateAndSendMetrics', async (span) => {
-      try {
-        const stationConfig = this.stationGenerator.generateStation(stationId);
-        const stationMetrics = this.metricsGenerator.generateMetrics(stationConfig, timestamp);
-        const fieldsenseDocs = this.fieldsenseFormatter.formatMetrics(stationMetrics);
-
-        await this.sendDocuments(fieldsenseDocs);
-        span.setStatus({ code: 1 });
-      } catch (error) {
-        span.recordException(error as Error);
-        span.setStatus({ code: 2, message: (error as Error).message });
-        throw error;
-      } finally {
-        span.end();
-      }
-    });
-  }
-
-  private async sendDocuments(documents: FieldSenseDocument[]): Promise<void> {
-    return tracer.startActiveSpan('sendDocuments', async (span) => {
-      try {
-        if (documents.length === 0) return;
-
-        // Sort documents by timestamp to ensure chronological order
-        const sortedDocs = documents.sort((a, b) => 
-          new Date(a['@timestamp']).getTime() - new Date(b['@timestamp']).getTime()
-        );
-
-        const operations: any[] = [];
-
-        for (const doc of sortedDocs) {
-          const indexName = `fieldsense-station-metrics`;
-
-          operations.push({
-            create: {
-              _index: indexName
-            }
-          });
-          operations.push(doc);
-        }
-
-        const response = await this.elasticsearchClient.bulk({
-          operations,
-          refresh: false
-        });
-
-        if (response.errors) {
-          console.error('Bulk create errors:', JSON.stringify(response.items?.filter(item => item.create?.error), null, 2));
-        }
-
-        span.setStatus({ code: 1 });
-      } catch (error) {
-        span.recordException(error as Error);
-        span.setStatus({ code: 2, message: (error as Error).message });
-        console.error('Error sending weather documents to Elasticsearch:', error);
-      } finally {
-        span.end();
-      }
-    });
-  }
-
-  private parseInterval(interval: string): number {
-    const match = interval.match(/^(\d+)([sm])$/);
-    if (!match) {
-      throw new Error(`Invalid interval format: ${interval}. Expected format: {number}{s|m}`);
-    }
-
-    const value = parseInt(match[1]);
-    const unit = match[2];
-
-    return unit === 's' ? value * 1000 : value * 60 * 1000;
-  }
-
-  private parseBackfill(backfill: string): Date {
-    if (backfill.startsWith('now-')) {
-      const duration = backfill.substring(4);
-      console.log(`Parsing duration: '${duration}'`);
-      
-      // Parse duration manually since moment.duration doesn't handle our format
-      const match = duration.match(/^(\d+)([smhd])$/);
-      if (!match) {
-        throw new Error(`Invalid duration format: ${duration}. Expected format: {number}{s|m|h|d}`);
-      }
-      
-      const value = parseInt(match[1]);
-      const unit = match[2];
-      
-      let result: moment.Moment;
-      switch (unit) {
-        case 's':
-          result = moment().subtract(value, 'seconds');
-          break;
-        case 'm':
-          result = moment().subtract(value, 'minutes');
-          break;
-        case 'h':
-          result = moment().subtract(value, 'hours');
-          break;
-        case 'd':
-          result = moment().subtract(value, 'days');
-          break;
-        default:
-          throw new Error(`Unsupported time unit: ${unit}`);
-      }
-      
-      console.log(`Parsed backfill '${backfill}' to: ${result.toISOString()}`);
-      return result.toDate();
-    } else if (backfill === 'now') {
-      const result = moment().toDate();
-      console.log(`Parsed backfill '${backfill}' to: ${result.toISOString()}`);
-      return result;
-    } else {
-      const parsed = moment(backfill);
-      if (!parsed.isValid()) {
-        throw new Error(`Invalid backfill format: ${backfill}`);
-      }
-      const result = parsed.toDate();
-      console.log(`Parsed backfill '${backfill}' to: ${result.toISOString()}`);
-      return result;
-    }
-  }
-
-  private generateStationIds(): string[] {
-    const ids: string[] = [];
-
-    for (let i = 1; i <= this.options.count; i++) {
-      ids.push(`station-${i.toString().padStart(2, '0')}`);
-    }
-
-    return ids;
   }
 }
