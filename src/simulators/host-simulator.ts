@@ -83,4 +83,17 @@ export class HostSimulator extends BaseSimulator<HostConfig, HostMetrics, OtelDo
   protected getEntityIdPrefix(): string {
     return 'host';
   }
+
+  protected getDocumentFormat(document: OtelDocument | ElasticDocument): string {
+    // Check if it's an OTel document by looking for resource attributes
+    if ('resource' in document && 'attributes' in document.resource) {
+      return 'otel';
+    }
+    // Check if it's an Elastic document by looking for metricset
+    if ('metricset' in document) {
+      return 'elastic';
+    }
+    // Default fallback
+    return 'unknown';
+  }
 }
