@@ -1,3 +1,10 @@
+export interface BulkHelperOptions {
+  flushBytes?: number;
+  flushInterval?: number;
+  concurrency?: number;
+  retries?: number;
+}
+
 export interface BaseSimulatorOptions {
   interval: string;
   backfill: string;
@@ -5,6 +12,7 @@ export interface BaseSimulatorOptions {
   elasticsearchUrl: string;
   elasticsearchAuth?: string;
   elasticsearchApiKey?: string;
+  bulkHelper?: BulkHelperOptions;
 }
 
 export interface ConfigGenerator<T> {

@@ -3,12 +3,16 @@ import { trace } from '@opentelemetry/api';
 import moment from 'moment';
 const datemath = require('@elastic/datemath');
 import { createElasticsearchClient } from '../utils/elasticsearch-client';
-import { 
-  BaseSimulatorOptions, 
-  ConfigGenerator, 
-  MetricsGenerator, 
-  FormatterResult 
+import {
+  BaseSimulatorOptions,
+  BulkHelperOptions,
+  ConfigGenerator,
+  MetricsGenerator,
+  FormatterResult
 } from '../types/simulator-types';
+import { BackfillStream } from '../streams/backfill-stream';
+import { RealTimeStream } from '../streams/realtime-stream';
+import { MetricsTransformStream } from '../streams/metrics-transform-stream';
 
 const tracer = trace.getTracer('simian-forge');
 
@@ -20,6 +24,8 @@ export abstract class BaseSimulator<TConfig, TMetrics, TDocument> {
   protected backfillStart: Date;
   protected entityIds: string[] = [];
   protected isRunning: boolean = false;
+  protected bulkHelperOptions: BulkHelperOptions;
+  protected realTimeStream: RealTimeStream | null = null;
 
   constructor(protected options: BaseSimulatorOptions) {
     this.configGenerator = this.createConfigGenerator();
@@ -40,6 +46,15 @@ export abstract class BaseSimulator<TConfig, TMetrics, TDocument> {
       auth: options.elasticsearchAuth,
       apiKey: options.elasticsearchApiKey
     });
+
+    // Configure bulk helper options
+    this.bulkHelperOptions = {
+      flushBytes: 5 * 1024 * 1024, // 5MB default
+      concurrency: 5,
+      retries: 3,
+      flushInterval: 30000, // 30 seconds
+      ...options.bulkHelper
+    };
   }
 
   async start(): Promise<void> {
@@ -50,17 +65,18 @@ export abstract class BaseSimulator<TConfig, TMetrics, TDocument> {
         console.log(`Starting ${this.getSimulatorName()} with ${this.entityIds.length} entities`);
         console.log(`Backfilling from ${this.backfillStart.toISOString()}`);
         console.log(`Interval: ${this.options.interval} (${this.intervalMs}ms)`);
+        console.log(`Bulk helper config: ${JSON.stringify(this.bulkHelperOptions)}`);
 
         // Optional setup
         if (this.setupElasticsearchTemplates) {
           await this.setupElasticsearchTemplates();
         }
 
-        // Backfill historical data
-        await this.backfillData();
+        // Backfill historical data using streams
+        await this.runBackfillStream();
 
-        // Start real-time generation
-        await this.startRealTimeGeneration();
+        // Start real-time generation using streams
+        await this.runRealTimeStream();
 
         span.setStatus({ code: 1 });
       } catch (error) {
@@ -76,155 +92,125 @@ export abstract class BaseSimulator<TConfig, TMetrics, TDocument> {
 
   stop(): void {
     this.isRunning = false;
+    if (this.realTimeStream) {
+      this.realTimeStream.stop();
+      this.realTimeStream = null;
+    }
   }
 
-  private async backfillData(): Promise<void> {
-    return tracer.startActiveSpan('backfillData', async (span) => {
+  private async runBackfillStream(): Promise<void> {
+    return tracer.startActiveSpan('runBackfillStream', async (span) => {
       try {
-        const now = new Date();
-        const current = new Date(this.backfillStart);
-        let totalDocuments = 0;
+        console.log(`Starting ${this.getSimulatorName()} backfill stream...`);
 
-        console.log(`Starting ${this.getSimulatorName()} backfill...`);
+        const backfillStream = new BackfillStream(
+          this.backfillStart,
+          new Date(),
+          this.entityIds,
+          this.intervalMs
+        );
 
-        while (current < now && this.isRunning) {
-          const batchPromises: Promise<void>[] = [];
+        const transformStream = new MetricsTransformStream(
+          this.configGenerator,
+          this.metricsGenerator,
+          this.formatMetrics.bind(this)
+        );
 
-          // Generate metrics for all entities at this timestamp
-          for (const entityId of this.entityIds) {
-            batchPromises.push(this.generateAndSendMetrics(entityId, new Date(current)));
+        const result = await this.elasticsearchClient.helpers.bulk({
+          datasource: backfillStream.pipe(transformStream),
+          onDocument: (doc: TDocument) => {
+            // We need to determine the format from the document itself
+            const format = this.getDocumentFormat(doc);
+            const indexName = this.getIndexName(doc, format);
+            return this.getCreateOperation(doc, format, indexName);
+          },
+          flushBytes: this.bulkHelperOptions.flushBytes,
+          concurrency: this.bulkHelperOptions.concurrency,
+          retries: this.bulkHelperOptions.retries,
+          flushInterval: this.bulkHelperOptions.flushInterval,
+          onDrop: (doc) => {
+            console.warn('Document dropped during backfill:', doc);
           }
-
-          // Wait for all entities to complete
-          await Promise.all(batchPromises);
-          totalDocuments += this.entityIds.length;
-
-          // Move to next interval
-          current.setTime(current.getTime() + this.intervalMs);
-
-          // Log progress occasionally
-          if (totalDocuments % this.getProgressLogInterval() === 0) {
-            console.log(`Backfilled ${totalDocuments} metric sets, current time: ${current.toISOString()}`);
-          }
-        }
-
-        console.log(`${this.getSimulatorName()} backfill complete. Generated ${totalDocuments} metric sets`);
-        span.setStatus({ code: 1 });
-      } catch (error) {
-        span.recordException(error as Error);
-        span.setStatus({ code: 2, message: (error as Error).message });
-        throw error;
-      } finally {
-        span.end();
-      }
-    });
-  }
-
-  private async startRealTimeGeneration(): Promise<void> {
-    return tracer.startActiveSpan('startRealTimeGeneration', async (span) => {
-      try {
-        console.log(`Starting real-time ${this.getSimulatorName()} generation...`);
-
-        const generateMetrics = async () => {
-          if (!this.isRunning) return;
-
-          const timestamp = new Date();
-          const promises: Promise<void>[] = [];
-
-          // Generate metrics for all entities
-          for (const entityId of this.entityIds) {
-            promises.push(this.generateAndSendMetrics(entityId, timestamp));
-          }
-
-          await Promise.all(promises);
-          console.log(`Generated ${this.getSimulatorName()} metrics for ${this.entityIds.length} entities at ${timestamp.toISOString()}`);
-
-          // Schedule next generation
-          setTimeout(generateMetrics, this.intervalMs);
-        };
-
-        // Start the generation cycle
-        await generateMetrics();
-
-        span.setStatus({ code: 1 });
-      } catch (error) {
-        span.recordException(error as Error);
-        span.setStatus({ code: 2, message: (error as Error).message });
-        throw error;
-      } finally {
-        span.end();
-      }
-    });
-  }
-
-  private async generateAndSendMetrics(entityId: string, timestamp: Date): Promise<void> {
-    return tracer.startActiveSpan('generateAndSendMetrics', async (span) => {
-      try {
-        // Generate entity configuration
-        const config = this.configGenerator.generateConfig(entityId);
-
-        // Generate metrics
-        const metrics = this.metricsGenerator.generateMetrics(config, timestamp);
-
-        // Format and send documents
-        const formatterResults = this.formatMetrics(metrics);
-        const promises: Promise<void>[] = [];
-
-        for (const result of formatterResults) {
-          promises.push(this.sendDocuments(result.documents, result.format));
-        }
-
-        await Promise.all(promises);
-        span.setStatus({ code: 1 });
-      } catch (error) {
-        span.recordException(error as Error);
-        span.setStatus({ code: 2, message: (error as Error).message });
-        throw error;
-      } finally {
-        span.end();
-      }
-    });
-  }
-
-  private async sendDocuments(documents: TDocument[], format: string): Promise<void> {
-    return tracer.startActiveSpan('sendDocuments', async (span) => {
-      try {
-        if (documents.length === 0) return;
-
-        // Sort documents by timestamp if they have one
-        const sortedDocs = this.sortDocumentsByTimestamp(documents);
-
-        // Prepare bulk operations
-        const operations: any[] = [];
-
-        for (const doc of sortedDocs) {
-          const indexName = this.getIndexName(doc, format);
-          const createOperation = this.getCreateOperation(doc, format, indexName);
-
-          operations.push(createOperation);
-          operations.push(doc);
-        }
-
-        // Send to Elasticsearch
-        const response = await this.elasticsearchClient.bulk({
-          operations,
-          refresh: false
         });
 
-        if (response.errors) {
-          console.error('Bulk create errors:', JSON.stringify(response.items?.filter(item => item.create?.error), null, 2));
-        }
+        console.log(`${this.getSimulatorName()} backfill complete:`, {
+          total: result.total,
+          successful: result.successful,
+          failed: result.failed,
+          retry: result.retry,
+          time: result.time,
+          bytes: result.bytes
+        });
 
         span.setStatus({ code: 1 });
       } catch (error) {
         span.recordException(error as Error);
         span.setStatus({ code: 2, message: (error as Error).message });
-        console.error(`Error sending ${format} documents to Elasticsearch:`, error);
+        throw error;
       } finally {
         span.end();
       }
     });
   }
+
+  private async runRealTimeStream(): Promise<void> {
+    return tracer.startActiveSpan('runRealTimeStream', async (span) => {
+      try {
+        console.log(`Starting real-time ${this.getSimulatorName()} stream...`);
+
+        this.realTimeStream = new RealTimeStream(this.entityIds, this.intervalMs);
+
+        const transformStream = new MetricsTransformStream(
+          this.configGenerator,
+          this.metricsGenerator,
+          this.formatMetrics.bind(this)
+        );
+
+        // Use smaller flush settings for real-time to reduce latency
+        const realTimeBulkOptions = {
+          ...this.bulkHelperOptions,
+          flushBytes: Math.min(this.bulkHelperOptions.flushBytes!, 1 * 1024 * 1024), // Max 1MB for real-time
+          concurrency: Math.min(this.bulkHelperOptions.concurrency!, 3) // Lower concurrency for real-time
+        };
+
+        // This runs indefinitely until stopped
+        const result = await this.elasticsearchClient.helpers.bulk({
+          datasource: this.realTimeStream.pipe(transformStream),
+          onDocument: (doc: TDocument) => {
+            // We need to determine the format from the document itself
+            const format = this.getDocumentFormat(doc);
+            const indexName = this.getIndexName(doc, format);
+            return this.getCreateOperation(doc, format, indexName);
+          },
+          flushBytes: realTimeBulkOptions.flushBytes,
+          concurrency: realTimeBulkOptions.concurrency,
+          retries: realTimeBulkOptions.retries,
+          flushInterval: realTimeBulkOptions.flushInterval,
+          onDrop: (doc) => {
+            console.warn('Document dropped during real-time:', doc);
+          }
+        });
+
+        console.log(`${this.getSimulatorName()} real-time stream ended:`, {
+          total: result.total,
+          successful: result.successful,
+          failed: result.failed,
+          retry: result.retry,
+          time: result.time,
+          bytes: result.bytes
+        });
+
+        span.setStatus({ code: 1 });
+      } catch (error) {
+        span.recordException(error as Error);
+        span.setStatus({ code: 2, message: (error as Error).message });
+        throw error;
+      } finally {
+        span.end();
+      }
+    });
+  }
+
 
   protected parseInterval(interval: string): number {
     const match = interval.match(/^(\d+)([sm])$/);
@@ -240,12 +226,12 @@ export abstract class BaseSimulator<TConfig, TMetrics, TDocument> {
 
   protected parseBackfill(backfill: string): Date {
     console.log(`Parsing backfill: '${backfill}'`);
-    
+
     const parsed = datemath.parse(backfill);
     if (!parsed || !parsed.isValid()) {
       throw new Error(`Invalid backfill format: ${backfill}. Expected Elasticsearch date math format (e.g., 'now-1h', 'now-30m', 'now-1d')`);
     }
-    
+
     const result = parsed.toDate();
     console.log(`Parsed backfill '${backfill}' to: ${result.toISOString()}`);
     return result;
@@ -262,19 +248,6 @@ export abstract class BaseSimulator<TConfig, TMetrics, TDocument> {
     return ids;
   }
 
-  protected sortDocumentsByTimestamp(documents: TDocument[]): TDocument[] {
-    return documents.sort((a, b) => {
-      const aTimestamp = this.getDocumentTimestamp(a);
-      const bTimestamp = this.getDocumentTimestamp(b);
-      return aTimestamp.getTime() - bTimestamp.getTime();
-    });
-  }
-
-  protected getDocumentTimestamp(document: TDocument): Date {
-    // Default implementation assumes '@timestamp' field
-    const timestamp = (document as any)['@timestamp'];
-    return timestamp ? new Date(timestamp) : new Date();
-  }
 
   protected getProgressLogInterval(): number {
     return 100; // Default to log every 100 documents
@@ -286,6 +259,7 @@ export abstract class BaseSimulator<TConfig, TMetrics, TDocument> {
   protected abstract formatMetrics(metrics: TMetrics): FormatterResult<TDocument>[];
   protected abstract getIndexName(document: TDocument, format: string): string;
   protected abstract getCreateOperation(document: TDocument, format: string, indexName: string): any;
+  protected abstract getDocumentFormat(document: TDocument): string;
   protected abstract getSimulatorName(): string;
   protected abstract getEntityIdPrefix(): string;
 

@@ -53,6 +53,11 @@ export class WeatherSimulator extends BaseSimulator<WeatherStationConfig, Weathe
     return 50; // Override to log every 50 documents for weather
   }
 
+  protected getDocumentFormat(document: FieldSenseDocument): string {
+    // Weather simulator only produces fieldsense format
+    return 'fieldsense';
+  }
+
   protected async setupElasticsearchTemplates(): Promise<void> {
     return tracer.startActiveSpan('setupElasticsearchTemplates', async (span) => {
       try {
