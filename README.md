@@ -18,17 +18,19 @@ This serves as a proof-of-concept for AI-assisted software development workflows
 
 ## Overview
 
-Simian Forge simulates realistic synthetic data for Elasticsearch, supporting two main datasets:
+Simian Forge simulates realistic synthetic data for Elasticsearch, supporting three main datasets:
 
 1. **Host Metrics**: CPU, memory, network, disk I/O, filesystem, and process statistics in OpenTelemetry and/or Elastic Metricbeat formats
 2. **Weather Station Data**: Environmental sensors, solar panels, energy consumption, and system metrics in FieldSense format
+3. **Unique Metrics**: Configurable cardinality testing with unique metric names for system performance evaluation
 
 This makes it ideal for testing monitoring systems, dashboards, alerting rules, and time series visualizations.
 
 ### Key Features
 
-- **Multiple Datasets**: Host metrics and weather station data generation
+- **Multiple Datasets**: Host metrics, weather station data, and unique metrics generation
 - **Format Support**: OpenTelemetry, Elastic Metricbeat, and FieldSense formats
+- **Cardinality Testing**: Configurable unique metric generation for performance testing
 - **Realistic Data Generation**: Correlated metrics, smooth transitions, and realistic patterns
 - **Backfill & Real-time**: Historical data backfill with configurable real-time generation
 - **Time Series Support**: Elasticsearch time series data streams with proper routing
@@ -178,7 +180,7 @@ Options:
   --interval <value>              Frequency of data generation (e.g., 30s, 5m) (default: "10s")
   --backfill <value>              How far back to backfill data (e.g., now-1h) (default: "now-5m")
   --count <number>                Number of entities to generate (default: "10")
-  --dataset <name>                Name of the dataset: hosts, weather (default: "hosts")
+  --dataset <name>                Name of the dataset: hosts, weather, unique-metrics (default: "hosts")
   --elasticsearch-url <url>       Elasticsearch cluster URL (default: "http://localhost:9200")
   --elasticsearch-auth <auth>     Elasticsearch auth in username:password format (default: "elastic:changeme")
   --elasticsearch-api-key <key>   Elasticsearch API key for authentication (default: "")
@@ -249,6 +251,23 @@ Purge existing weather data and start fresh:
 ./forge --dataset weather --purge --count 3 --backfill now-12h
 ```
 
+#### Unique Metrics (Cardinality Testing)
+
+Generate 1000 unique metrics for cardinality testing:
+```bash
+./forge --dataset unique-metrics --count 1000 --interval 30s
+```
+
+Test high cardinality with backfill:
+```bash
+./forge --dataset unique-metrics --count 5000 --backfill now-1h --interval 1m
+```
+
+Purge existing cardinality test data and start fresh:
+```bash
+./forge --dataset unique-metrics --purge --count 2500 --interval 15s
+```
+
 #### General Options
 
 Connect to remote Elasticsearch with API key authentication:
@@ -267,6 +286,58 @@ Generate with custom OpenTelemetry collector:
 ```
 
 ## Data Formats
+
+### Unique Metrics (Cardinality Testing)
+
+Generates configurable numbers of unique metrics for testing system cardinality limits:
+
+- **Configurable Count**: `--count` parameter controls the exact number of unique metrics generated
+- **Guaranteed Uniqueness**: Each metric name includes a counter suffix (e.g., `system.usage.total.1`, `system.usage.total.2`)
+- **Consistent Dimensions**: Each metric has 3-5 dimensions that remain consistent across intervals
+- **Index Distribution**: Automatically distributes metrics across indices (500 metrics per index) to avoid Elasticsearch mapping limits
+- **OTel Format**: Uses OpenTelemetry format with `_metric_names_hash` for consistency
+- **Dynamic Templates**: Each metric is mapped as `gauge_double` type
+- **Data Streams**: Routes to `metrics-uniquemetrics{N}.otel-default` (e.g., `metrics-uniquemetrics1.otel-default`)
+
+Example document:
+```json
+{
+  "@timestamp": "2025-01-17T15:30:00.000Z",
+  "_metric_names_hash": "xyz789",
+  "resource": {
+    "attributes": {
+      "service.name": "metrics-cardinality-test",
+      "service.version": "1.0.0",
+      "telemetry.sdk.name": "opentelemetry",
+      "telemetry.sdk.language": "javascript",
+      "telemetry.sdk.version": "1.0.0"
+    }
+  },
+  "attributes": {
+    "entity.id": "metric-01",
+    "environment": "production",
+    "region": "us-east-1",
+    "service": "metrics-cardinality-test",
+    "datacenter": "dc1",
+    "availability_zone": "us-east-1a"
+  },
+  "metrics": {
+    "system.usage.total.1": 0.75
+  },
+  "data_stream": {
+    "type": "metrics",
+    "dataset": "cardinality.otel",
+    "namespace": "default"
+  }
+}
+```
+
+Key features:
+- **Scalable Testing**: Generate anywhere from 5 to 10,000+ unique metrics
+- **Index Management**: Automatically splits across multiple indices at 500 metrics per index
+- **Deterministic Dimensions**: Same dimensions per metric across all intervals for consistent cardinality
+- **Performance Testing**: Perfect for testing Elasticsearch mapping limits, query performance, and storage efficiency
+- **Smart Purging**: Calculates exact indices to delete based on metric count
 
 ### Weather Station Data (FieldSense Format)
 
@@ -434,6 +505,9 @@ When making schema changes or testing new features, use the `--purge` option to 
 # Purge and restart with weather data
 ./forge --dataset weather --purge --count 3 --backfill now-6h
 
+# Purge and restart with unique metrics (cardinality testing)
+./forge --dataset unique-metrics --purge --count 1000
+
 # Purge specific format for hosts
 ./forge --dataset hosts --format otel --purge
 ```
@@ -454,6 +528,13 @@ This ensures clean data streams with updated mappings and templates.
 3. Add formatting logic to `src/formatters/fieldsense-formatter.ts`
 4. Update Elasticsearch mappings in `src/simulators/weather-simulator.ts`
 5. Test with: `--dataset weather --purge`
+
+#### For Unique Metrics (Cardinality Testing):
+1. Update `UniqueMetricsConfig` or `UniqueMetricsMetrics` interfaces in `src/types/unique-metrics-types.ts`
+2. Modify generation logic in `src/simulators/unique-metrics-config-generator.ts` or `src/simulators/unique-metrics-metrics-generator.ts`
+3. Update formatting logic in `src/formatters/unique-metrics-formatter.ts`
+4. Adjust index distribution logic in `src/simulators/unique-metrics-simulator.ts` if needed
+5. Test with various counts: `--dataset unique-metrics --purge --count 100`
 
 ### Host Configuration
 
