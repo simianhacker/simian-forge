@@ -65,4 +65,10 @@ export class UniqueMetricsSimulator extends BaseSimulator<UniqueMetricsConfig, U
   protected getEntityIdPrefix(): string {
     return 'metric';
   }
+
+  protected generateEntityIds(): string[] {
+    // For unique metrics, we always want exactly 1 entity
+    // The count controls the number of metrics, not the number of entities
+    return ['metric-01'];
+  }
 }

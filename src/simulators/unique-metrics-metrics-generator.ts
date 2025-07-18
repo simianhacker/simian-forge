@@ -24,21 +24,24 @@ export class UniqueMetricsMetricsGenerator implements MetricsGenerator<UniqueMet
     const numDimensions = 3 + (hash % 3); // 3-5 dimensions
     
     const possibleDimensions = [
-      { key: 'datacenter', values: ['dc1', 'dc2', 'dc3', 'dc4'] },
-      { key: 'availability_zone', values: ['us-east-1a', 'us-east-1b', 'us-east-1c'] },
-      { key: 'instance_type', values: ['m5.large', 'm5.xlarge', 'c5.large', 'c5.xlarge'] },
-      { key: 'team', values: ['platform', 'frontend', 'backend', 'data'] },
-      { key: 'component', values: ['api', 'worker', 'scheduler', 'cache'] },
-      { key: 'version', values: ['1.0.0', '1.1.0', '1.2.0', '2.0.0'] },
-      { key: 'cluster', values: ['prod-east', 'prod-west', 'staging'] },
-      { key: 'namespace', values: ['default', 'monitoring', 'logging', 'metrics'] }
+      { key: 'datacenter', values: ['dc1', 'dc2', 'dc3', 'dc4', 'dc5', 'dc6', 'dc7', 'dc8'] },
+      { key: 'availability_zone', values: ['us-east-1a', 'us-east-1b', 'us-east-1c', 'us-west-2a', 'us-west-2b', 'eu-west-1a', 'eu-west-1b', 'ap-southeast-1a'] },
+      { key: 'instance_type', values: ['m5.large', 'm5.xlarge', 'c5.large', 'c5.xlarge', 't3.medium', 't3.large', 'r5.large', 'r5.xlarge'] },
+      { key: 'team', values: ['platform', 'frontend', 'backend', 'data', 'devops', 'security', 'mobile', 'analytics'] },
+      { key: 'component', values: ['api', 'worker', 'scheduler', 'cache', 'database', 'queue', 'proxy', 'gateway'] },
+      { key: 'version', values: ['1.0.0', '1.1.0', '1.2.0', '2.0.0', '2.1.0', '2.2.0', '3.0.0', '3.1.0'] },
+      { key: 'cluster', values: ['prod-east', 'prod-west', 'staging', 'dev', 'test', 'canary', 'blue', 'green'] },
+      { key: 'namespace', values: ['default', 'monitoring', 'logging', 'metrics', 'kube-system', 'ingress', 'storage', 'security'] },
+      { key: 'env', values: ['production', 'staging', 'development', 'test', 'qa', 'canary', 'preview', 'sandbox'] },
+      { key: 'tier', values: ['web', 'api', 'database', 'cache', 'queue', 'storage', 'compute', 'network'] }
     ];
 
-    // Select consistent dimensions for this metric
+    // Select consistent dimensions for this metric based on hash
     for (let i = 0; i < numDimensions; i++) {
       const dimIndex = (hash + i) % possibleDimensions.length;
       const dimension = possibleDimensions[dimIndex];
-      const valueIndex = (hash + i * 7) % dimension.values.length;
+      // Use a different multiplier to get more variation in values
+      const valueIndex = (hash + i * 13 + Math.floor(hash / 100)) % dimension.values.length;
       dimensions[dimension.key] = dimension.values[valueIndex];
     }
 
