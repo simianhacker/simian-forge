@@ -13,6 +13,7 @@ export interface BaseSimulatorOptions {
   elasticsearchAuth?: string;
   elasticsearchApiKey?: string;
   bulkHelper?: BulkHelperOptions;
+  noRealtime?: boolean;
 }
 
 export interface ConfigGenerator<T> {

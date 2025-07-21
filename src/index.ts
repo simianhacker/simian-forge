@@ -95,7 +95,8 @@ async function main() {
         .option('--elasticsearch-api-key <key>', 'Elasticsearch API key for authentication', '')
         .option('--collector <url>', 'OpenTelemetry collector HTTP endpoint', 'http://localhost:4318')
         .option('--format <format>', 'Output format: otel, elastic, or both', 'both')
-        .option('--purge', 'Delete existing data streams for the dataset before starting');
+        .option('--purge', 'Delete existing data streams for the dataset before starting')
+        .option('--no-realtime', 'Skip real-time data generation after backfill completes');
 
       program.parse();
       const options = program.opts();
@@ -130,7 +131,8 @@ async function main() {
         elasticsearchUrl: options.elasticsearchUrl,
         format: options.format,
         collector: options.collector,
-        purge: options.purge
+        purge: options.purge,
+        noRealtime: !options.realtime
       });
 
       // Handle purge if requested
@@ -149,7 +151,8 @@ async function main() {
           elasticsearchUrl: options.elasticsearchUrl,
           elasticsearchAuth: options.elasticsearchAuth,
           elasticsearchApiKey: options.elasticsearchApiKey,
-          format: options.format as 'otel' | 'elastic' | 'both'
+          format: options.format as 'otel' | 'elastic' | 'both',
+          noRealtime: !options.realtime
         });
       } else if (options.dataset === 'weather') {
         simulator = new WeatherSimulator({
@@ -158,7 +161,8 @@ async function main() {
           count: count,
           elasticsearchUrl: options.elasticsearchUrl,
           elasticsearchAuth: options.elasticsearchAuth,
-          elasticsearchApiKey: options.elasticsearchApiKey
+          elasticsearchApiKey: options.elasticsearchApiKey,
+          noRealtime: !options.realtime
         });
       } else if (options.dataset === 'unique-metrics') {
         simulator = new UniqueMetricsSimulator({
@@ -167,22 +171,32 @@ async function main() {
           count: count,
           elasticsearchUrl: options.elasticsearchUrl,
           elasticsearchAuth: options.elasticsearchAuth,
-          elasticsearchApiKey: options.elasticsearchApiKey
+          elasticsearchApiKey: options.elasticsearchApiKey,
+          noRealtime: !options.realtime
         });
       } else {
         throw new Error(`Unsupported dataset: ${options.dataset}`);
       }
 
-      await simulator.start();
+      const shouldExit = await simulator.start();
       
-      // Cleanup on shutdown
-      process.on('SIGINT', async () => {
-        console.log('Shutting down...');
+      if (shouldExit) {
+        // Backfill completed with --no-realtime, clean up and exit
+        console.log('Cleaning up and exiting...');
         await simianLogger.shutdown();
+        span.setStatus({ code: 1 });
         process.exit(0);
-      });
-      
-      span.setStatus({ code: 1 }); // OK
+      } else {
+        // Real-time mode started, set up cleanup handlers
+        process.on('SIGINT', async () => {
+          console.log('Shutting down...');
+          simulator.stop();
+          await simianLogger.shutdown();
+          process.exit(0);
+        });
+        
+        span.setStatus({ code: 1 }); // OK
+      }
     } catch (error) {
       console.error('Error:', error);
       span.recordException(error as Error);

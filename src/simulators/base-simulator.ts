@@ -26,6 +26,7 @@ export abstract class BaseSimulator<TConfig, TMetrics, TDocument> {
   protected isRunning: boolean = false;
   protected bulkHelperOptions: BulkHelperOptions;
   protected realTimeStream: RealTimeStream | null = null;
+  protected noRealtime: boolean;
 
   constructor(protected options: BaseSimulatorOptions) {
     this.configGenerator = this.createConfigGenerator();
@@ -55,9 +56,12 @@ export abstract class BaseSimulator<TConfig, TMetrics, TDocument> {
       flushInterval: 30000, // 30 seconds
       ...options.bulkHelper
     };
+
+    // Configure real-time behavior
+    this.noRealtime = options.noRealtime || false;
   }
 
-  async start(): Promise<void> {
+  async start(): Promise<boolean> {
     return tracer.startActiveSpan('start', async (span) => {
       try {
         this.isRunning = true;
@@ -65,6 +69,7 @@ export abstract class BaseSimulator<TConfig, TMetrics, TDocument> {
         console.log(`Starting ${this.getSimulatorName()} with ${this.entityIds.length} entities`);
         console.log(`Backfilling from ${this.backfillStart.toISOString()}`);
         console.log(`Interval: ${this.options.interval} (${this.intervalMs}ms)`);
+        console.log(`Real-time generation: ${this.noRealtime ? 'disabled' : 'enabled'}`);
         console.log(`Bulk helper config: ${JSON.stringify(this.bulkHelperOptions)}`);
 
         // Optional setup
@@ -75,10 +80,16 @@ export abstract class BaseSimulator<TConfig, TMetrics, TDocument> {
         // Backfill historical data using streams
         await this.runBackfillStream();
 
-        // Start real-time generation using streams
-        await this.runRealTimeStream();
-
-        span.setStatus({ code: 1 });
+        // Start real-time generation using streams (unless disabled)
+        if (!this.noRealtime) {
+          await this.runRealTimeStream();
+          span.setStatus({ code: 1 });
+          return false; // Real-time was started, don't exit
+        } else {
+          console.log(`${this.getSimulatorName()} backfill completed. Real-time generation disabled.`);
+          span.setStatus({ code: 1 });
+          return true; // Backfill only completed, should exit
+        }
       } catch (error) {
         console.error(`Error in ${this.getSimulatorName()}:`, error);
         span.recordException(error as Error);
