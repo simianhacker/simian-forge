@@ -5,6 +5,7 @@ import { initializeTracing } from './tracing';
 import { HostSimulator } from './simulators/host-simulator';
 import { WeatherSimulator } from './simulators/weather-simulator';
 import { UniqueMetricsSimulator } from './simulators/unique-metrics-simulator';
+import { HistogramsSimulator } from './simulators/histograms-simulator';
 import { simianLogger } from './logger';
 import { trace } from '@opentelemetry/api';
 import { Client } from '@elastic/elasticsearch';
@@ -43,6 +44,8 @@ async function purgeDataStreams(elasticsearchUrl: string, elasticsearchAuth: str
         for (let i = 1; i <= numIndices; i++) {
           dataStreamsToDelete.push(`metrics-uniquemetrics${i}.otel-default`);
         }
+      } else if (dataset === 'histograms') {
+        dataStreamsToDelete.push('histograms-samples');
       }
 
       console.log(`Purging data streams for dataset '${dataset}'...`);
@@ -108,8 +111,8 @@ async function main() {
       simianLogger.initializeElasticsearch(options.elasticsearchUrl, options.elasticsearchAuth, options.elasticsearchApiKey);
 
       // Validate dataset
-      if (!['hosts', 'weather', 'unique-metrics'].includes(options.dataset)) {
-        throw new Error(`Unsupported dataset: ${options.dataset}. Supported datasets: 'hosts', 'weather', 'unique-metrics'.`);
+      if (!['hosts', 'weather', 'unique-metrics', 'histograms'].includes(options.dataset)) {
+        throw new Error(`Unsupported dataset: ${options.dataset}. Supported datasets: 'hosts', 'weather', 'unique-metrics', 'histograms'.`);
       }
 
       // Validate format (only for hosts dataset)
@@ -141,7 +144,7 @@ async function main() {
       }
 
       // Create and start the appropriate simulator
-      let simulator: HostSimulator | WeatherSimulator | UniqueMetricsSimulator;
+      let simulator: HostSimulator | WeatherSimulator | UniqueMetricsSimulator | HistogramsSimulator;
       
       if (options.dataset === 'hosts') {
         simulator = new HostSimulator({
@@ -166,6 +169,16 @@ async function main() {
         });
       } else if (options.dataset === 'unique-metrics') {
         simulator = new UniqueMetricsSimulator({
+          interval: options.interval,
+          backfill: options.backfill,
+          count: count,
+          elasticsearchUrl: options.elasticsearchUrl,
+          elasticsearchAuth: options.elasticsearchAuth,
+          elasticsearchApiKey: options.elasticsearchApiKey,
+          noRealtime: !options.realtime
+        });
+      } else if (options.dataset === 'histograms') {
+        simulator = new HistogramsSimulator({
           interval: options.interval,
           backfill: options.backfill,
           count: count,

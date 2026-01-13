@@ -23,12 +23,14 @@ Simian Forge simulates realistic synthetic data for Elasticsearch, supporting th
 1. **Host Metrics**: CPU, memory, network, disk I/O, filesystem, and process statistics in OpenTelemetry and/or Elastic Metricbeat formats
 2. **Weather Station Data**: Environmental sensors, solar panels, energy consumption, and system metrics in FieldSense format
 3. **Unique Metrics**: Configurable cardinality testing with unique metric names for system performance evaluation
+4. **Histograms**: Time series dataset with `histogram` (t-digest-like + HDR-like) and `exponential_histogram` fields for distribution testing
 
 This makes it ideal for testing monitoring systems, dashboards, alerting rules, and time series visualizations.
 
 ### Key Features
 
 - **Multiple Datasets**: Host metrics, weather station data, and unique metrics generation
+- **Histogram Field Types**: Generates `histogram` and `exponential_histogram` fields for aggregation/testing
 - **Format Support**: OpenTelemetry, Elastic Metricbeat, and FieldSense formats
 - **Cardinality Testing**: Configurable unique metric generation for performance testing
 - **Realistic Data Generation**: Correlated metrics, smooth transitions, and realistic patterns
@@ -180,7 +182,7 @@ Options:
   --interval <value>              Frequency of data generation (e.g., 30s, 5m) (default: "10s")
   --backfill <value>              How far back to backfill data (e.g., now-1h) (default: "now-5m")
   --count <number>                Number of entities to generate (default: "10")
-  --dataset <name>                Name of the dataset: hosts, weather, unique-metrics (default: "hosts")
+  --dataset <name>                Name of the dataset: hosts, weather, unique-metrics, histograms (default: "hosts")
   --elasticsearch-url <url>       Elasticsearch cluster URL (default: "http://localhost:9200")
   --elasticsearch-auth <auth>     Elasticsearch auth in username:password format (default: "elastic:changeme")
   --elasticsearch-api-key <key>   Elasticsearch API key for authentication (default: "")
@@ -266,6 +268,18 @@ Test high cardinality with backfill:
 Purge existing cardinality test data and start fresh:
 ```bash
 ./forge --dataset unique-metrics --purge --count 2500 --interval 15s
+```
+
+#### Histograms (Histogram + Exponential Histogram Fields)
+
+Generate time series histogram samples (one doc per entity per interval):
+```bash
+./forge --dataset histograms --count 3 --interval 10s
+```
+
+Purge existing histogram data stream and start fresh:
+```bash
+./forge --dataset histograms --purge --count 3 --backfill now-30m --interval 10s
 ```
 
 #### General Options
@@ -376,6 +390,44 @@ Key features:
 - **Geo-spatial Support**: Coordinates stored as geo_point for mapping and spatial queries
 - **Comprehensive Coverage**: 24+ different metric types per station
 - **Time Series Optimized**: Proper dimensions and metric routing for long-term storage
+
+### Histograms (Histogram + Exponential Histogram Fields)
+
+Generates a dedicated time series data stream containing distribution fields:
+
+- **Data Stream**: `histograms-samples` (Elasticsearch `index.mode: time_series`)
+- **Dimensions**: `entity.id`
+- **Fields**:
+  - `histogram.tdigest` (`histogram`)
+  - `histogram.hdr` (`histogram`)
+  - `histogram.exponential` (`exponential_histogram`)
+
+Example document:
+```json
+{
+  "@timestamp": "2025-01-08T15:30:00.000Z",
+  "entity.id": "entity-01",
+  "histogram.tdigest": {
+    "values": [12.3, 18.7, 29.1],
+    "counts": [10, 12, 8]
+  },
+  "histogram.hdr": {
+    "values": [10.0, 14.1, 20.0],
+    "counts": [5, 15, 10]
+  },
+  "histogram.exponential": {
+    "scale": 8,
+    "sum": 1234.0,
+    "min": 5.1,
+    "max": 420.2,
+    "zero": { "threshold": 0, "count": 0 },
+    "positive": {
+      "indices": [12, 13, 14],
+      "counts": [20, 7, 3]
+    }
+  }
+}
+```
 
 ### OpenTelemetry Format
 
