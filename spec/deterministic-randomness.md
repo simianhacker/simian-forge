@@ -1,7 +1,7 @@
 # Deterministic randomness (remove `Math.random`)
 
 ## Status
-in-progress
+ready
 
 ## Context
 - **Problem**: The repo still uses `Math.random()` in a couple places, which makes runs non-reproducible and complicates debugging/comparisons (same CLI inputs can generate different output).
@@ -22,7 +22,7 @@ in-progress
   - Running `./forge --dataset unique-metrics --count 5 --backfill now-1m --no-realtime` twice produces identical metric values for the same timestamps (spot-check via logs or by temporarily indexing into a fresh cluster)
 
 ## Tasks
-- [x] 1) Make `unique-metrics` values deterministic (owner: agent)
+- [ ] 1) Make `unique-metrics` values deterministic (owner: agent)
   - **Change**: Replace `Math.random()` in `UniqueMetricsMetricsGenerator.generateMetrics()` with a deterministic value using `seededRandom()` seeded by `(config.id, metric name, timestamp)` so values vary over time but are repeatable for the same inputs.
   - **Files**: `src/simulators/unique-metrics-metrics-generator.ts`
   - **Acceptance**:
@@ -68,4 +68,3 @@ in-progress
 ## Additional Context
 This spec intentionally does **not** introduce a global `--seed` flag; the goal is simply to eliminate non-determinism from accidental `Math.random()` usage while keeping existing deterministic patterns (hash/seeded RNG) consistent with the rest of the codebase.
 
-- For metric values, seeding uses `timestamp.toISOString()` (not locale time) to ensure stable seeds across environments/timezones for the same effective timestamp.

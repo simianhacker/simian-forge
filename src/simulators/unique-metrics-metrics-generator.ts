@@ -1,12 +1,11 @@
 import { MetricsGenerator } from '../types/simulator-types';
 import { UniqueMetricsConfig, UniqueMetricsMetrics } from '../types/unique-metrics-types';
-import { seededRandom } from '../utils/hash';
 
 export class UniqueMetricsMetricsGenerator implements MetricsGenerator<UniqueMetricsConfig, UniqueMetricsMetrics> {
   generateMetrics(config: UniqueMetricsConfig, timestamp: Date): UniqueMetricsMetrics {
     const metrics = config.metricNames.map(name => ({
       name,
-      value: seededRandom(`${config.id}:${name}:${timestamp.toISOString()}`)(), // Deterministic 0..1 for same inputs
+      value: Math.random(), // Random value between 0 and 1
       dimensions: this.generateDimensions(name, config.baseDimensions)
     }));
 

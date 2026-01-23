@@ -24,8 +24,7 @@ export abstract class BaseFormatter {
     };
     
     const providerImages = imageIds[provider as keyof typeof imageIds] || imageIds.aws;
-    const idx = hashString(`imageId:${provider}`) % providerImages.length;
-    return providerImages[idx];
+    return providerImages[Math.floor(Math.random() * providerImages.length)];
   }
 
   protected generateImageName(provider: string): string {
@@ -39,8 +38,7 @@ export abstract class BaseFormatter {
     };
     
     const providerNames = imageNames[provider as keyof typeof imageNames] || imageNames.aws;
-    const idx = hashString(`imageName:${provider}`) % providerNames.length;
-    return providerNames[idx];
+    return providerNames[Math.floor(Math.random() * providerNames.length)];
   }
 
   protected generateHostIPs(hostName: string): string[] {
