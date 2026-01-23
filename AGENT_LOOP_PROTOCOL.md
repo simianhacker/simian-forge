@@ -11,6 +11,6 @@ You are executing a spec in an iterative, multi-session loop.
   - Adjust remaining tasks if reality differs (split/merge/reword as needed).
   - Update `## Status`:
     - `in-progress` when the first implementation task begins
-    - `done` only when the spec’s “Definition of done” is met
+    - `done` only when the spec’s “Definition of done” is met (and all tasks needed to satisfy it are complete)
 - Exit after updating the spec so the next fresh session can continue.
 
