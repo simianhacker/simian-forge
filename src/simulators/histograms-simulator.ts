@@ -138,17 +138,17 @@ export class HistogramsSimulator extends BaseSimulator<
                 meta: { description: "Entity id" },
               },
               "histogram.tdigest": {
-                type: "histogram",
+                type: "tdigest",
                 time_series_metric: "histogram",
                 meta: {
-                  description: "Tdigest-like histogram",
+                  description: "T-digest histogram (time series)",
                 },
               },
-              "histogram.hdr": {
+              "histogram.legacy": {
                 type: "histogram",
                 time_series_metric: "histogram",
                 meta: {
-                  description: "HDR-like histogram",
+                  description: "Legacy histogram (HDR-like)",
                 },
               },
               "histogram.exponential": {

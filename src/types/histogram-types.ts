@@ -5,7 +5,7 @@ export interface HistogramsConfig {
    * Kept stable across runs (deterministic per entity).
    */
   distribution: {
-    type: 'lognormal';
+    type: "lognormal";
     /** Typical value (roughly median) */
     median: number;
     /** Spread (higher means heavier tail) */
@@ -17,6 +17,12 @@ export interface HistogramsConfig {
 
 export interface HistogramField {
   values: number[];
+  counts: number[];
+}
+
+/** ES tdigest field format (centroids + counts). */
+export interface TDigestField {
+  centroids: number[];
   counts: number[];
 }
 
@@ -43,17 +49,16 @@ export interface HistogramsMetrics {
   timestamp: Date;
   entity: HistogramsConfig;
   histograms: {
-    tdigest: HistogramField;
-    hdr: HistogramField;
+    tdigest: TDigestField;
+    legacy: HistogramField;
     exponential: ExponentialHistogramField;
   };
 }
 
 export interface HistogramsDocument {
-  '@timestamp': string;
-  'entity.id': string;
-  'histogram.tdigest': HistogramField;
-  'histogram.hdr': HistogramField;
-  'histogram.exponential': ExponentialHistogramField;
+  "@timestamp": string;
+  "entity.id": string;
+  "histogram.tdigest": TDigestField;
+  "histogram.legacy": HistogramField;
+  "histogram.exponential": ExponentialHistogramField;
 }
-
