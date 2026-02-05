@@ -1,20 +1,20 @@
 import { createHash } from 'crypto';
 import { trace } from '@opentelemetry/api';
-import { ExponentialHistogramField, HistogramField, HistogramsConfig } from '../types/histogram-types';
+import { ExponentialHistogramField, HistogramField, HistogramsConfig, TDigestField } from '../types/histogram-types';
 
 const tracer = trace.getTracer('simian-forge');
 
 export class HistogramsGenerator {
-  generateTdigestHistogram(config: HistogramsConfig, timestamp: Date, sampleCount: number = 200, centroids: number = 20): HistogramField {
+  generateTdigestHistogram(config: HistogramsConfig, timestamp: Date, sampleCount: number = 200, centroidCount: number = 20): TDigestField {
     return tracer.startActiveSpan('generateTdigestHistogram', (span) => {
       try {
         const samples = this.generateSamples(config, timestamp, sampleCount);
         const sorted = [...samples].sort((a, b) => a - b);
 
-        const k = Math.max(1, Math.min(centroids, sorted.length));
+        const k = Math.max(1, Math.min(centroidCount, sorted.length));
         const groupSize = Math.ceil(sorted.length / k);
 
-        const values: number[] = [];
+        const centroids: number[] = [];
         const counts: number[] = [];
 
         for (let i = 0; i < sorted.length; i += groupSize) {
@@ -22,15 +22,15 @@ export class HistogramsGenerator {
           const count = group.length;
           const mean = group.reduce((s, v) => s + v, 0) / count;
 
-          const prev = values.length ? values[values.length - 1] : -Infinity;
+          const prev = centroids.length ? centroids[centroids.length - 1] : -Infinity;
           const v = mean > prev ? mean : prev + 1e-12;
 
-          values.push(v);
+          centroids.push(v);
           counts.push(count);
         }
 
         span.setStatus({ code: 1 });
-        return { values, counts };
+        return { centroids, counts };
       } catch (error) {
         span.recordException(error as Error);
         span.setStatus({ code: 2, message: (error as Error).message });
@@ -41,8 +41,8 @@ export class HistogramsGenerator {
     });
   }
 
-  generateHdrHistogram(config: HistogramsConfig, timestamp: Date, sampleCount: number = 200, buckets: number = 60): HistogramField {
-    return tracer.startActiveSpan('generateHdrHistogram', (span) => {
+  generateLegacyHistogram(config: HistogramsConfig, timestamp: Date, sampleCount: number = 200, buckets: number = 60): HistogramField {
+    return tracer.startActiveSpan('generateLegacyHistogram', (span) => {
       try {
         const samples = this.generateSamples(config, timestamp, sampleCount);
 

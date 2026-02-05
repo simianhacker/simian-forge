@@ -398,8 +398,8 @@ Generates a dedicated time series data stream containing distribution fields:
 - **Data Stream**: `histograms-samples` (Elasticsearch `index.mode: time_series`)
 - **Dimensions**: `entity.id`
 - **Fields**:
-  - `histogram.tdigest` (`histogram`)
-  - `histogram.hdr` (`histogram`)
+  - `histogram.tdigest` (`tdigest`, document shape `centroids` + `counts`)
+  - `histogram.legacy` (`histogram`, legacy HDR-like)
   - `histogram.exponential` (`exponential_histogram`)
 
 Example document:
@@ -408,10 +408,10 @@ Example document:
   "@timestamp": "2025-01-08T15:30:00.000Z",
   "entity.id": "entity-01",
   "histogram.tdigest": {
-    "values": [12.3, 18.7, 29.1],
+    "centroids": [12.3, 18.7, 29.1],
     "counts": [10, 12, 8]
   },
-  "histogram.hdr": {
+  "histogram.legacy": {
     "values": [10.0, 14.1, 20.0],
     "counts": [5, 15, 10]
   },
