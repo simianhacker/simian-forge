@@ -1,18 +1,21 @@
-import { trace } from '@opentelemetry/api';
-import { HistogramsDocument, HistogramsMetrics } from '../types/histogram-types';
+import { trace } from "@opentelemetry/api";
+import {
+  HistogramsDocument,
+  HistogramsMetrics,
+} from "../types/histogram-types";
 
-const tracer = trace.getTracer('simian-forge');
+const tracer = trace.getTracer("simian-forge");
 
 export class HistogramsFormatter {
   formatMetrics(metrics: HistogramsMetrics): HistogramsDocument[] {
-    return tracer.startActiveSpan('formatMetrics', (span) => {
+    return tracer.startActiveSpan("formatMetrics", (span) => {
       try {
         const doc: HistogramsDocument = {
-          '@timestamp': metrics.timestamp.toISOString(),
-          'entity.id': metrics.entity.id,
-          'histogram.tdigest': metrics.histograms.tdigest,
-          'histogram.hdr': metrics.histograms.hdr,
-          'histogram.exponential': metrics.histograms.exponential
+          "@timestamp": metrics.timestamp.toISOString(),
+          "entity.id": metrics.entity.id,
+          "histogram.tdigest": metrics.histograms.tdigest,
+          "histogram.legacy": metrics.histograms.legacy,
+          "histogram.exponential": metrics.histograms.exponential,
         };
 
         span.setStatus({ code: 1 });
@@ -27,4 +30,3 @@ export class HistogramsFormatter {
     });
   }
 }
-
