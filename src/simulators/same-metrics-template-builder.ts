@@ -5,7 +5,6 @@ export interface StreamTemplateConfig {
 }
 
 const BASE_ROUTING_PATH = ["metric.name"];
-const HAS_4_DIMENSIONS = ["host.name", "region", "environment"];
 
 export const STREAM_TEMPLATE_CONFIGS: Record<string, StreamTemplateConfig> = {
   "timeseries-same-metric-different-unit-eur": {
