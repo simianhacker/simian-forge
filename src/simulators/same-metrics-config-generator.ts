@@ -4,6 +4,7 @@ import {
   SameMetricsScenarioKind,
   SameMetricsDimensions
 } from '../types/same-metrics-types';
+import { STREAM_TEMPLATE_CONFIGS } from './same-metrics-template-builder';
 
 const DATA_STREAM_IDS = [
   'timeseries-same-metric-different-unit-eur',
@@ -14,6 +15,20 @@ const DATA_STREAM_IDS = [
   'timeseries-same-metric-different-dimensions-has-4',
   'timeseries-same-metric-different-dimensions-has-1'
 ] as const;
+
+const DEFAULT_DIMENSION_VALUES: Record<string, string> = {
+  'host.name': 'gateway-01',
+  region: 'eu-west-1',
+  environment: 'production'
+};
+
+function buildDimensionsFromNames(dimNames: string[]): SameMetricsDimensions {
+  const result = {} as Record<string, string>;
+  for (const name of dimNames) {
+    result[name] = DEFAULT_DIMENSION_VALUES[name] ?? '';
+  }
+  return result as unknown as SameMetricsDimensions;
+}
 
 function scenarioFromDataStream(dataStream: string): SameMetricsScenarioKind {
   if (dataStream.includes('different-unit-')) {
@@ -28,14 +43,6 @@ function scenarioFromDataStream(dataStream: string): SameMetricsScenarioKind {
   return 'same_metric_two_datastreams';
 }
 
-function dimensionsForHas4(): SameMetricsDimensions {
-  return {
-    'host.name': 'gateway-01',
-    region: 'eu-west-1',
-    environment: 'production'
-  };
-}
-
 export class SameMetricsConfigGenerator implements ConfigGenerator<SameMetricsConfig> {
   generateConfig(entityId: string): SameMetricsConfig {
     const dataStream = entityId;
@@ -44,8 +51,9 @@ export class SameMetricsConfigGenerator implements ConfigGenerator<SameMetricsCo
       dataStream,
       scenario
     };
-    if (dataStream === 'timeseries-same-metric-different-dimensions-has-4') {
-      config.dimensions = dimensionsForHas4();
+    const dimNames = STREAM_TEMPLATE_CONFIGS[dataStream]?.dimensions;
+    if (dimNames?.length) {
+      config.dimensions = buildDimensionsFromNames(dimNames);
     }
     return config;
   }

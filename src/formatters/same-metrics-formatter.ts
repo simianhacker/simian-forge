@@ -16,9 +16,9 @@ export class SameMetricsFormatter {
       'test.data_stream': metrics.dataStream
     };
     if (metrics.dimensions) {
-      doc['host.name'] = metrics.dimensions['host.name'];
-      doc.region = metrics.dimensions.region;
-      doc.environment = metrics.dimensions.environment;
+      for (const [key, value] of Object.entries(metrics.dimensions)) {
+        (doc as unknown as Record<string, unknown>)[key] = value;
+      }
     }
     return [{ documents: [doc], format: 'same-metrics' }];
   }
