@@ -7,6 +7,7 @@ A command-line tool for generating synthetic data and sending it to Elasticsearc
 **Note**: This project was developed as an experiment to evaluate AI coding tools, specifically [Claude Code](https://claude.ai/code). The goal was to create a complete, production-ready tool without writing a single line of code manually - instead relying entirely on AI guidance and code generation.
 
 The experiment successfully demonstrates that AI coding assistants can:
+
 - Understand complex technical requirements and specifications
 - Generate comprehensive TypeScript applications with proper architecture
 - Implement industry-standard protocols (OpenTelemetry, Elasticsearch APIs)
@@ -18,12 +19,13 @@ This serves as a proof-of-concept for AI-assisted software development workflows
 
 ## Overview
 
-Simian Forge simulates realistic synthetic data for Elasticsearch, supporting three main datasets:
+Simian Forge simulates realistic synthetic data for Elasticsearch, supporting these datasets:
 
 1. **Host Metrics**: CPU, memory, network, disk I/O, filesystem, and process statistics in OpenTelemetry and/or Elastic Metricbeat formats
 2. **Weather Station Data**: Environmental sensors, solar panels, energy consumption, and system metrics in FieldSense format
 3. **Unique Metrics**: Configurable cardinality testing with unique metric names for system performance evaluation
 4. **Histograms**: Time series dataset with `histogram` (t-digest-like + HDR-like) and `exponential_histogram` fields for distribution testing
+5. **Same Metrics**: Time series test scenarios (same metric in two streams, different units, different dimensions) for testing the Metrics experience in Discover
 
 This makes it ideal for testing monitoring systems, dashboards, alerting rules, and time series visualizations.
 
@@ -55,17 +57,20 @@ This makes it ideal for testing monitoring systems, dashboards, alerting rules, 
 The easiest way to get started is with Docker, which provides a complete testing environment:
 
 1. Clone the repository:
+
 ```bash
 git clone <repository-url>
 cd simian-forge
 ```
 
 2. Build the Docker image:
+
 ```bash
 docker build -t simianhacker/simian-forge:latest .
 ```
 
 3. Run with Docker Compose (includes Elasticsearch, Kibana, and OpenTelemetry):
+
 ```bash
 # Start the full stack
 docker compose --profile full-stack up -d
@@ -80,17 +85,20 @@ docker compose --profile full-stack down
 ### Local Development Setup
 
 1. Clone the repository:
+
 ```bash
 git clone <repository-url>
 cd simian-forge
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 ```
 
 3. Build the project:
+
 ```bash
 npm run build
 ```
@@ -169,6 +177,7 @@ docker compose --profile full-stack up -d
 ### Local Usage
 
 Generate metrics for 5 minutes with default settings:
+
 ```bash
 ./forge
 ```
@@ -182,7 +191,7 @@ Options:
   --interval <value>              Frequency of data generation (e.g., 30s, 5m) (default: "10s")
   --backfill <value>              How far back to backfill data (e.g., now-1h) (default: "now-5m")
   --count <number>                Number of entities to generate (default: "10")
-  --dataset <name>                Name of the dataset: hosts, weather, unique-metrics, histograms (default: "hosts")
+  --dataset <name>                Name of the dataset: hosts, weather, unique-metrics, histograms, same-metrics (default: "hosts")
   --elasticsearch-url <url>       Elasticsearch cluster URL (default: "http://localhost:9200")
   --elasticsearch-auth <auth>     Elasticsearch auth in username:password format (default: "elastic:changeme")
   --elasticsearch-api-key <key>   Elasticsearch API key for authentication (default: "")
@@ -196,11 +205,13 @@ Options:
 Simian Forge supports multiple authentication methods for Elasticsearch:
 
 1. **API Key Authentication (Recommended)**:
+
    ```bash
    ./forge --elasticsearch-api-key "your-api-key-here"
    ```
 
 2. **Username/Password Authentication**:
+
    ```bash
    ./forge --elasticsearch-auth "username:password"
    ```
@@ -217,21 +228,25 @@ Simian Forge supports multiple authentication methods for Elasticsearch:
 #### Host Metrics
 
 Generate only OpenTelemetry format metrics:
+
 ```bash
 ./forge --dataset hosts --format otel --interval 30s
 ```
 
 Generate metrics with 1-hour backfill:
+
 ```bash
 ./forge --dataset hosts --backfill now-1h --interval 2m
 ```
 
 Generate metrics for 25 hosts with custom interval:
+
 ```bash
 ./forge --dataset hosts --count 25 --interval 30s
 ```
 
 Purge existing data and start fresh:
+
 ```bash
 ./forge --dataset hosts --purge --format both
 ```
@@ -239,16 +254,19 @@ Purge existing data and start fresh:
 #### Weather Station Data
 
 Generate weather station data with 5 stations:
+
 ```bash
 ./forge --dataset weather --count 5 --interval 1m
 ```
 
 Generate weather data with 24-hour backfill:
+
 ```bash
 ./forge --dataset weather --backfill now-24h --interval 10s
 ```
 
 Purge existing weather data and start fresh:
+
 ```bash
 ./forge --dataset weather --purge --count 3 --backfill now-12h
 ```
@@ -256,16 +274,19 @@ Purge existing weather data and start fresh:
 #### Unique Metrics (Cardinality Testing)
 
 Generate 1000 unique metrics for cardinality testing:
+
 ```bash
 ./forge --dataset unique-metrics --count 1000 --interval 30s
 ```
 
 Test high cardinality with backfill:
+
 ```bash
 ./forge --dataset unique-metrics --count 5000 --backfill now-1h --interval 1m
 ```
 
 Purge existing cardinality test data and start fresh:
+
 ```bash
 ./forge --dataset unique-metrics --purge --count 2500 --interval 15s
 ```
@@ -273,28 +294,49 @@ Purge existing cardinality test data and start fresh:
 #### Histograms (Histogram + Exponential Histogram Fields)
 
 Generate time series histogram samples (one doc per entity per interval):
+
 ```bash
 ./forge --dataset histograms --count 3 --interval 10s
 ```
 
 Purge existing histogram data stream and start fresh:
+
 ```bash
 ./forge --dataset histograms --purge --count 3 --backfill now-30m --interval 10s
 ```
 
+#### Same Metrics (Timeseries Test Scenarios)
+
+Generate time series data for three test scenarios (same metric in two streams, different units, different dimensions). Creates seven data streams for use in the Metrics experience in Discover. `--count` is ignored; all seven streams are always populated.
+
+```bash
+./forge --dataset same-metrics --interval 1m
+```
+
+Purge and regenerate:
+
+```bash
+./forge --dataset same-metrics --purge --backfill now-1h --interval 1m
+```
+
+**Identifying scenarios in the UI:** Use the data stream name or document fields. Data streams: **Different units** — `timeseries-same-metric-different-unit-eur`, `timeseries-same-metric-different-unit-usd`, `timeseries-same-metric-different-unit-null` (no unit in mapping); **Different datastreams** — `timeseries-same-metric-different-datastream-1`, `timeseries-same-metric-different-datastream-2`; **Different dimensions** — `timeseries-same-metric-different-dimensions-has-4` (4 dimensions), `timeseries-same-metric-different-dimensions-has-1` (1 dimension). Each document includes `test.scenario` and `test.data_stream` so you can filter or group by scenario in Discover.
+
 #### General Options
 
 Connect to remote Elasticsearch with API key authentication:
+
 ```bash
 ./forge --elasticsearch-url https://my-cluster.com:9200 --elasticsearch-api-key your-api-key-here
 ```
 
 Connect to remote Elasticsearch with username/password authentication:
+
 ```bash
 ./forge --elasticsearch-url https://my-cluster.com:9200 --elasticsearch-auth myuser:mypass
 ```
 
 Generate with custom OpenTelemetry collector:
+
 ```bash
 ./forge --collector http://otel-collector:4318
 ```
@@ -314,6 +356,7 @@ Generates configurable numbers of unique metrics for testing system cardinality 
 - **Data Streams**: Routes to `metrics-uniquemetrics{N}.otel-default` (e.g., `metrics-uniquemetrics1.otel-default`)
 
 Example document:
+
 ```json
 {
   "@timestamp": "2025-01-17T15:30:00.000Z",
@@ -347,6 +390,7 @@ Example document:
 ```
 
 Key features:
+
 - **Scalable Testing**: Generate anywhere from 5 to 10,000+ unique metrics
 - **Index Management**: Automatically splits across multiple indices at 500 metrics per index
 - **Deterministic Dimensions**: Same dimensions per metric across all intervals for consistent cardinality
@@ -365,6 +409,7 @@ Generates comprehensive weather station metrics in FieldSense namespace:
 - **Data Stream**: Routes to `fieldsense-station-metrics`
 
 Example document:
+
 ```json
 {
   "@timestamp": "2025-01-08T15:30:00.000Z",
@@ -373,7 +418,7 @@ Example document:
   "station.name": "FieldSense Station 01",
   "station.location.coordinates": {
     "lat": 40.7128,
-    "lon": -74.0060
+    "lon": -74.006
   },
   "station.location.region": "us-east-1",
   "sensor.id": "temperature-1",
@@ -385,6 +430,7 @@ Example document:
 ```
 
 Key features:
+
 - **Realistic Correlations**: Cloudy weather reduces solar output, temperature affects soil conditions
 - **Smooth Transitions**: Weather changes gradually with proper smoothing algorithms
 - **Geo-spatial Support**: Coordinates stored as geo_point for mapping and spatial queries
@@ -403,6 +449,7 @@ Generates a dedicated time series data stream containing distribution fields:
   - `histogram.exponential` (`exponential_histogram`)
 
 Example document:
+
 ```json
 {
   "@timestamp": "2025-01-08T15:30:00.000Z",
@@ -439,6 +486,7 @@ Generates metrics following OpenTelemetry semantic conventions:
 - **Data Stream**: Routes to `metrics-hostmetricsreceiver.otel-default`
 
 Example document:
+
 ```json
 {
   "@timestamp": "2025-06-17T15:30:00.000Z",
@@ -472,6 +520,7 @@ Generates metrics following Elastic Metricbeat patterns:
 - **Data Streams**: Routes to `metrics-system.{metricset}-default`
 
 Example document:
+
 ```json
 {
   "@timestamp": "2025-06-17T15:30:00.000Z",
@@ -534,6 +583,7 @@ npm run dev      # Build and run the application
 ### Development Setup
 
 1. Install dependencies:
+
 ```bash
 npm install
 ```
@@ -541,6 +591,7 @@ npm install
 2. Make changes to TypeScript files in `src/`
 
 3. Build and test:
+
 ```bash
 npm run build
 ./forge --help
@@ -569,12 +620,14 @@ This ensures clean data streams with updated mappings and templates.
 ### Adding New Metrics
 
 #### For Host Metrics:
+
 1. Update `HostMetrics` interface in `src/types/host-types.ts`
 2. Implement generation logic in `src/simulators/metrics-generator.ts`
 3. Add formatting logic to both `src/formatters/otel-formatter.ts` and `src/formatters/elastic-formatter.ts`
 4. Test with both formats: `--format both`
 
 #### For Weather Station Metrics:
+
 1. Update `WeatherStationMetrics` interface in `src/types/weather-types.ts`
 2. Implement generation logic in `src/simulators/weather-metrics-generator.ts`
 3. Add formatting logic to `src/formatters/fieldsense-formatter.ts`
@@ -582,6 +635,7 @@ This ensures clean data streams with updated mappings and templates.
 5. Test with: `--dataset weather --purge`
 
 #### For Unique Metrics (Cardinality Testing):
+
 1. Update `UniqueMetricsConfig` or `UniqueMetricsMetrics` interfaces in `src/types/unique-metrics-types.ts`
 2. Modify generation logic in `src/simulators/unique-metrics-config-generator.ts` or `src/simulators/unique-metrics-metrics-generator.ts`
 3. Update formatting logic in `src/formatters/unique-metrics-formatter.ts`
@@ -649,10 +703,10 @@ ELASTICSEARCH_AUTH=username:password
 Add Simian Forge to your existing Docker Compose setup:
 
 ```yaml
-version: '3.8'
+version: "3.8"
 services:
   # Your existing services...
-  
+
   data-generator:
     image: simianhacker/simian-forge:latest
     environment:
@@ -662,14 +716,21 @@ services:
       - COUNT=15
       - DATASET=hosts
       - FORMAT=both
-    command: [
-      "--elasticsearch-url", "${ELASTICSEARCH_URL}",
-      "--collector", "${COLLECTOR}",
-      "--interval", "${INTERVAL}",
-      "--count", "${COUNT}",
-      "--dataset", "${DATASET}",
-      "--format", "${FORMAT}"
-    ]
+    command:
+      [
+        "--elasticsearch-url",
+        "${ELASTICSEARCH_URL}",
+        "--collector",
+        "${COLLECTOR}",
+        "--interval",
+        "${INTERVAL}",
+        "--count",
+        "${COUNT}",
+        "--dataset",
+        "${DATASET}",
+        "--format",
+        "${FORMAT}",
+      ]
     depends_on:
       - elasticsearch
     networks:
@@ -681,11 +742,13 @@ services:
 #### Local Elasticsearch
 
 Start a local Elasticsearch instance:
+
 ```bash
 docker run -p 9200:9200 -e "discovery.type=single-node" -e "xpack.security.enabled=false" docker.elastic.co/elasticsearch/elasticsearch:8.13.0
 ```
 
 Run simian-forge:
+
 ```bash
 ./forge --elasticsearch-url http://localhost:9200
 ```
@@ -738,7 +801,7 @@ service:
 
 **Chris Cowan** ([@simianhacker](https://github.com/simianhacker))
 
-*Built with AI assistance from [Claude Code](https://claude.ai/code)*
+_Built with AI assistance from [Claude Code](https://claude.ai/code)_
 
 ## License
 
