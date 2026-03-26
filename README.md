@@ -25,7 +25,7 @@ Simian Forge simulates realistic synthetic data for Elasticsearch, supporting th
 2. **Weather Station Data**: Environmental sensors, solar panels, energy consumption, and system metrics in FieldSense format
 3. **Unique Metrics**: Configurable cardinality testing with unique metric names for system performance evaluation
 4. **Histograms**: Time series dataset with `histogram` (t-digest-like + HDR-like) and `exponential_histogram` fields for distribution testing
-5. **Same Metrics**: Time series test scenarios (same metric in two streams, different units, different dimensions) for testing the Metrics experience in Discover
+5. **Same Metrics**: 9 scenario pairs (15 data streams) testing identical streams, different dimensions, ES metric types, field types, histogram variants, and unit differences for the Metrics experience in Discover
 
 This makes it ideal for testing monitoring systems, dashboards, alerting rules, and time series visualizations.
 
@@ -305,9 +305,9 @@ Purge existing histogram data stream and start fresh:
 ./forge --dataset histograms --purge --count 3 --backfill now-30m --interval 10s
 ```
 
-#### Same Metrics (Timeseries Test Scenarios)
+#### Same Metrics (Scenario Pairs)
 
-Generate time series data for three test scenarios (same metric in two streams, different units, different dimensions). Creates seven data streams for use in the Metrics experience in Discover. `--count` is ignored; all seven streams are always populated.
+Generate time series data for 9 scenario pairs (15 data streams). All streams share the metric name `request_duration` and the metric field `request_duration`. Each pair tests a specific conflict axis. `--count` is ignored; all 15 streams are always populated.
 
 ```bash
 ./forge --dataset same-metrics --interval 1m
@@ -319,7 +319,23 @@ Purge and regenerate:
 ./forge --dataset same-metrics --purge --backfill now-1h --interval 1m
 ```
 
-**Identifying scenarios in the UI:** Use the data stream name or document fields. Data streams: **Different units** — `timeseries-same-metric-different-unit-eur`, `timeseries-same-metric-different-unit-usd`, `timeseries-same-metric-different-unit-null` (no unit in mapping); **Different datastreams** — `timeseries-same-metric-different-datastream-1`, `timeseries-same-metric-different-datastream-2`; **Different dimensions** — `timeseries-same-metric-different-dimensions-has-4` (4 dimensions), `timeseries-same-metric-different-dimensions-has-1` (1 dimension). Each document includes `test.scenario` and `test.data_stream` so you can filter or group by scenario in Discover.
+**9 scenario pairs:**
+
+| # | Scenario | Stream A | Stream B | What differs |
+|---|----------|----------|----------|-------------|
+| 1 | Identical (baseline) | `same-metric-identical-a` | `same-metric-identical-b` | Nothing (gauge, double, ms, host.name) |
+| 2 | Different dimension keys | `same-metric-different-dims-host-region` | `same-metric-different-dims-host-env` | dimension_keys |
+| 3 | Different ES metric type (gauge vs counter) | `same-metric-different-estype-gauge` | `same-metric-different-estype-counter` | metric type + field type |
+| 4 | Different ES metric type (histogram vs gauge) | `same-metric-different-estype-histogram` | `same-metric-different-estype-gauge` (shared) | metric type |
+| 5 | Different field type | `same-metric-different-fieldtype-long` | `same-metric-different-fieldtype-double` | field type (long vs double) |
+| 6 | Different histogram (tdigest vs exponential) | `same-metric-different-histogram-tdigest` | `same-metric-different-histogram-exponential` | field type (tdigest vs exponential_histogram) |
+| 7 | Different histogram (tdigest vs legacy) | `same-metric-different-histogram-tdigest` (shared) | `same-metric-different-histogram-legacy` | field type (tdigest vs histogram) |
+| 8 | Different unit (null vs ms) | `same-metric-different-unit-null` | `same-metric-different-unit-ms` | unit (none vs ms) |
+| 9 | Different unit (ms vs seconds) | `same-metric-different-unit-ms` (shared) | `same-metric-different-unit-seconds` | unit (ms vs s) |
+
+Shared streams: `same-metric-different-estype-gauge` (scenarios 3 + 4), `same-metric-different-histogram-tdigest` (scenarios 6 + 7), `same-metric-different-unit-ms` (scenarios 8 + 9).
+
+**Identifying scenarios in the UI:** Each document includes `test.scenario` and `test.data_stream` fields so you can filter or group by scenario in Discover.
 
 #### General Options
 
