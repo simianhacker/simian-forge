@@ -26,6 +26,7 @@ Simian Forge simulates realistic synthetic data for Elasticsearch, supporting th
 3. **Unique Metrics**: Configurable cardinality testing with unique metric names for system performance evaluation
 4. **Histograms**: Time series dataset with `histogram` (t-digest-like + HDR-like) and `exponential_histogram` fields for distribution testing
 5. **Same Metrics**: 9 scenario pairs (15 data streams) testing identical streams, different dimensions, ES metric types, field types, histogram variants, and unit differences for the Metrics experience in Discover
+6. **Edge Cases**: 6 data streams that each undergo a mid-backfill rollover to change metric type, field type, histogram variant, or unit -- simulating real-world mapping updates
 
 This makes it ideal for testing monitoring systems, dashboards, alerting rules, and time series visualizations.
 
@@ -336,6 +337,35 @@ Purge and regenerate:
 Shared streams: `same-metric-different-estype-gauge` (scenarios 3 + 4), `same-metric-different-histogram-tdigest` (scenarios 6 + 7), `same-metric-different-unit-ms` (scenarios 8 + 9).
 
 **Identifying scenarios in the UI:** Each document includes `test.scenario` and `test.data_stream` fields so you can filter or group by scenario in Discover.
+
+#### Edge Cases (Mid-Backfill Rollover)
+
+Generate time series data for 6 data streams where each stream starts with one mapping and rolls over mid-backfill to a different mapping. This simulates real-world scenarios where a data stream's metric type, field type, or unit changes over time. Each stream uses its stream name as both the `metric.name` and the metric field name. `--count` and `--backfill` are ignored; the dataset always generates a fixed 10-minute window (5 minutes per phase) to avoid time series range overlaps.
+
+```bash
+./forge --dataset edge-cases --interval 1m
+```
+
+Purge and regenerate:
+
+```bash
+./forge --dataset edge-cases --purge --interval 1m
+```
+
+**6 edge-case streams:**
+
+| Stream name | Phase 1 (first half) | Phase 2 (after rollover) |
+|---|---|---|
+| `edge-case-gauge-to-counter` | gauge / long | counter / double |
+| `edge-case-histogram-to-gauge` | histogram (legacy) / histogram | gauge / double |
+| `edge-case-histogram-to-tdigest` | histogram (legacy) / histogram | tdigest / histogram |
+| `edge-case-tdigest-to-exponential` | tdigest / histogram | exponential_histogram / histogram |
+| `edge-case-unit-null-to-ms` | gauge / double, unit: null | gauge / double, unit: ms |
+| `edge-case-unit-ms-to-s` | gauge / double, unit: ms | gauge / double, unit: s |
+
+**How it works:** The simulator generates a fixed 10-minute backfill window split into two 5-minute phases. Phase 1 (now-10m to now-5m) is indexed with the initial mapping. Then the index template is updated and the data stream is rolled over. Phase 2 (now-5m to now) is indexed with the updated mapping. Real-time data (if enabled) uses the phase-2 mapping.
+
+**Identifying edge cases in the UI:** Each document includes `metric.name` matching the stream name (e.g., `edge-case-gauge-to-counter`) and `test.data_stream` for filtering.
 
 #### General Options
 

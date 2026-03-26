@@ -8,6 +8,8 @@ import { UniqueMetricsSimulator } from "./simulators/unique-metrics-simulator";
 import { HistogramsSimulator } from "./simulators/histograms-simulator";
 import { SameMetricsSimulator } from "./simulators/same-metrics-simulator";
 import { DATA_STREAM_IDS } from "./simulators/same-metrics-config-generator";
+import { EdgeCasesSimulator } from "./simulators/edge-cases-simulator";
+import { EDGE_CASE_STREAM_IDS } from "./simulators/edge-cases-config-generator";
 import { simianLogger } from "./logger";
 import { trace } from "@opentelemetry/api";
 import { Client } from "@elastic/elasticsearch";
@@ -57,6 +59,8 @@ async function purgeDataStreams(
         dataStreamsToDelete.push("histograms-samples");
       } else if (dataset === "same-metrics") {
         dataStreamsToDelete.push(...DATA_STREAM_IDS);
+      } else if (dataset === "edge-cases") {
+        dataStreamsToDelete.push(...EDGE_CASE_STREAM_IDS);
       }
 
       console.log(`Purging data streams for dataset '${dataset}'...`);
@@ -172,10 +176,11 @@ async function main() {
           "unique-metrics",
           "histograms",
           "same-metrics",
+          "edge-cases",
         ].includes(options.dataset)
       ) {
         throw new Error(
-          `Unsupported dataset: ${options.dataset}. Supported datasets: 'hosts', 'weather', 'unique-metrics', 'histograms', 'same-metrics'.`,
+          `Unsupported dataset: ${options.dataset}. Supported datasets: 'hosts', 'weather', 'unique-metrics', 'histograms', 'same-metrics', 'edge-cases'.`,
         );
       }
 
@@ -227,7 +232,8 @@ async function main() {
         | WeatherSimulator
         | UniqueMetricsSimulator
         | HistogramsSimulator
-        | SameMetricsSimulator;
+        | SameMetricsSimulator
+        | EdgeCasesSimulator;
 
       if (options.dataset === "hosts") {
         simulator = new HostSimulator({
@@ -272,6 +278,16 @@ async function main() {
         });
       } else if (options.dataset === "same-metrics") {
         simulator = new SameMetricsSimulator({
+          interval: options.interval,
+          backfill: options.backfill,
+          count: count,
+          elasticsearchUrl: options.elasticsearchUrl,
+          elasticsearchAuth: options.elasticsearchAuth,
+          elasticsearchApiKey: options.elasticsearchApiKey,
+          noRealtime: !options.realtime,
+        });
+      } else if (options.dataset === "edge-cases") {
+        simulator = new EdgeCasesSimulator({
           interval: options.interval,
           backfill: options.backfill,
           count: count,
