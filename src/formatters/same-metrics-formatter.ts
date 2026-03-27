@@ -20,7 +20,7 @@ export class SameMetricsFormatter {
     const doc: SameMetricsDocument = {
       "@timestamp": metrics.timestamp.toISOString(),
       "metric.name": METRIC_NAME,
-      request_duration: metricValue as number,
+      request_duration: metricValue,
       "test.scenario": metrics.scenario,
       "test.data_stream": metrics.dataStream,
     };

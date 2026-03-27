@@ -192,7 +192,7 @@ Options:
   --interval <value>              Frequency of data generation (e.g., 30s, 5m) (default: "10s")
   --backfill <value>              How far back to backfill data (e.g., now-1h) (default: "now-5m")
   --count <number>                Number of entities to generate (default: "10")
-  --dataset <name>                Name of the dataset: hosts, weather, unique-metrics, histograms, same-metrics (default: "hosts")
+  --dataset <name>                Name of the dataset: hosts, weather, unique-metrics, histograms, same-metrics, edge-cases (default: "hosts")
   --elasticsearch-url <url>       Elasticsearch cluster URL (default: "http://localhost:9200")
   --elasticsearch-auth <auth>     Elasticsearch auth in username:password format (default: "elastic:changeme")
   --elasticsearch-api-key <key>   Elasticsearch API key for authentication (default: "")

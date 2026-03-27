@@ -34,7 +34,7 @@ export interface SameMetricsMetrics {
 export interface SameMetricsDocument {
   "@timestamp": string;
   "metric.name": string;
-  request_duration: number;
+  request_duration: unknown;
   "test.scenario": string;
   "test.data_stream": string;
   [key: string]: unknown;

@@ -27,7 +27,7 @@ export function buildTdigestValue(value: number): {
 export function buildExponentialHistogramValue(
   value: number,
 ): Record<string, unknown> {
-  const base = Math.abs(value % 1000);
+  const base = Math.abs(value % 1000) || 1;
   return {
     scale: 3,
     sum: base * 10,
