@@ -101,7 +101,7 @@ export class SameMetricsSimulator extends BaseSimulator<
             try {
               await this.elasticsearchClient.indices.putIndexTemplate({
                 name: dataStream,
-                body: template,
+                ...template,
               });
               console.log(`Created index template: ${dataStream}`);
             } catch (error) {

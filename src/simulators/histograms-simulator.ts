@@ -103,7 +103,7 @@ export class HistogramsSimulator extends BaseSimulator<
           try {
             await this.elasticsearchClient.indices.putIndexTemplate({
               name: "histograms-samples",
-              body: indexTemplate,
+              ...indexTemplate,
             });
             console.log("Created index template: histograms-samples");
           } catch (error) {
