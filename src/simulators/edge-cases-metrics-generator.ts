@@ -4,10 +4,10 @@ import {
   EdgeCasesMetrics,
   EdgeCasesPhase,
 } from "../types/edge-cases-types";
-import { getStreamConfig } from "./edge-cases-template-builder";
+import { getPhaseConfig } from "./edge-cases-template-builder";
 
-function counterValueForStream(dataStream: string, timestamp: Date): number {
-  const base = getStreamConfig(dataStream).phase1.baseValue;
+function counterValueForStream(dataStream: string, phase: EdgeCasesPhase, timestamp: Date): number {
+  const base = getPhaseConfig(dataStream, phase).baseValue;
   const minutes = Math.floor(timestamp.getTime() / (60 * 1000));
   return base + minutes * 5;
 }
@@ -30,7 +30,7 @@ export class EdgeCasesMetricsGenerator
 
     const metrics: EdgeCasesMetrics = {
       timestamp,
-      counterValue: counterValueForStream(config.dataStream, timestamp),
+      counterValue: counterValueForStream(config.dataStream, phase, timestamp),
       dataStream: config.dataStream,
       phase,
     };

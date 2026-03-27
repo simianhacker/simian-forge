@@ -308,7 +308,7 @@ Purge existing histogram data stream and start fresh:
 
 #### Same Metrics (Scenario Pairs)
 
-Generate time series data for 9 scenario pairs (15 data streams). All streams share the metric name `request_duration` and the metric field `request_duration`. Each pair tests a specific conflict axis. `--count` is ignored; all 15 streams are always populated.
+Generate time series data for 9 scenario pairs (15 data streams). All streams share the metric name `request_duration` and the metric field `request_duration`. Each pair tests a specific conflict axis. `--count` is ignored (all 15 streams are always populated); `--backfill` is respected and controls the template time-series start time and backfill window.
 
 ```bash
 ./forge --dataset same-metrics --interval 1m
