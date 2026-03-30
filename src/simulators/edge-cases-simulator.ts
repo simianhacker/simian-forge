@@ -31,6 +31,8 @@ export class EdgeCasesSimulator extends BaseSimulator<
 
   constructor(options: BaseSimulatorOptions) {
     super(options);
+    // Deterministic fixture with auto-generated _ids — retries would duplicate documents
+    this.bulkHelperOptions.retries = 0;
     this.formatter = new EdgeCasesFormatter();
     this.edgeCasesMetricsGenerator =
       this.metricsGenerator as unknown as EdgeCasesMetricsGenerator;
@@ -134,10 +136,12 @@ export class EdgeCasesSimulator extends BaseSimulator<
           console.log(
             `${this.getSimulatorName()} backfill completed. Real-time generation disabled.`,
           );
+          this.isRunning = false;
           span.setStatus({ code: 1 });
           return true;
         }
       } catch (error) {
+        this.isRunning = false;
         console.error(`Error in ${this.getSimulatorName()}:`, error);
         span.recordException(error as Error);
         span.setStatus({ code: 2, message: (error as Error).message });
