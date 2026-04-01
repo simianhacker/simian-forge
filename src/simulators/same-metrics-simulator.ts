@@ -105,10 +105,11 @@ export class SameMetricsSimulator extends BaseSimulator<
               });
               console.log(`Created index template: ${dataStream}`);
             } catch (error) {
-              console.warn(
+              console.error(
                 `Failed to create index template ${dataStream}:`,
                 error,
               );
+              throw error;
             }
           }
 
