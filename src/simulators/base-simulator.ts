@@ -109,14 +109,16 @@ export abstract class BaseSimulator<TConfig, TMetrics, TDocument> {
     }
   }
 
-  private async runBackfillStream(): Promise<void> {
+  protected async runBackfillStream(startTime?: Date, endTime?: Date): Promise<void> {
     return tracer.startActiveSpan('runBackfillStream', async (span) => {
       try {
-        console.log(`Starting ${this.getSimulatorName()} backfill stream...`);
+        const from = startTime ?? this.backfillStart;
+        const to = endTime ?? new Date();
+        console.log(`Starting ${this.getSimulatorName()} backfill stream (${from.toISOString()} -> ${to.toISOString()})...`);
 
         const backfillStream = new BackfillStream(
-          this.backfillStart,
-          new Date(),
+          from,
+          to,
           this.entityIds,
           this.intervalMs
         );
@@ -164,7 +166,7 @@ export abstract class BaseSimulator<TConfig, TMetrics, TDocument> {
     });
   }
 
-  private async runRealTimeStream(): Promise<void> {
+  protected async runRealTimeStream(): Promise<void> {
     return tracer.startActiveSpan('runRealTimeStream', async (span) => {
       try {
         console.log(`Starting real-time ${this.getSimulatorName()} stream...`);

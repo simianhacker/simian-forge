@@ -1,51 +1,66 @@
 #!/usr/bin/env node
 
-import { Command } from 'commander';
-import { initializeTracing } from './tracing';
-import { HostSimulator } from './simulators/host-simulator';
-import { WeatherSimulator } from './simulators/weather-simulator';
-import { UniqueMetricsSimulator } from './simulators/unique-metrics-simulator';
-import { HistogramsSimulator } from './simulators/histograms-simulator';
-import { simianLogger } from './logger';
-import { trace } from '@opentelemetry/api';
-import { Client } from '@elastic/elasticsearch';
-import { createElasticsearchClient } from './utils/elasticsearch-client';
+import { Command } from "commander";
+import { initializeTracing } from "./tracing";
+import { HostSimulator } from "./simulators/host-simulator";
+import { WeatherSimulator } from "./simulators/weather-simulator";
+import { UniqueMetricsSimulator } from "./simulators/unique-metrics-simulator";
+import { HistogramsSimulator } from "./simulators/histograms-simulator";
+import { SameMetricsSimulator } from "./simulators/same-metrics-simulator";
+import { DATA_STREAM_IDS } from "./simulators/same-metrics-config-generator";
+import { EdgeCasesSimulator } from "./simulators/edge-cases-simulator";
+import { EDGE_CASE_STREAM_IDS } from "./simulators/edge-cases-config-generator";
+import { simianLogger } from "./logger";
+import { trace } from "@opentelemetry/api";
+import { Client } from "@elastic/elasticsearch";
+import { createElasticsearchClient } from "./utils/elasticsearch-client";
 
-const tracer = trace.getTracer('simian-forge');
+const tracer = trace.getTracer("simian-forge");
 
-async function purgeDataStreams(elasticsearchUrl: string, elasticsearchAuth: string, elasticsearchApiKey: string, dataset: string, format?: string, count?: number): Promise<void> {
-  return tracer.startActiveSpan('purgeDataStreams', async (span) => {
+async function purgeDataStreams(
+  elasticsearchUrl: string,
+  elasticsearchAuth: string,
+  elasticsearchApiKey: string,
+  dataset: string,
+  format?: string,
+  count?: number,
+): Promise<void> {
+  return tracer.startActiveSpan("purgeDataStreams", async (span) => {
     try {
       const client = createElasticsearchClient({
         url: elasticsearchUrl,
         auth: elasticsearchAuth,
-        apiKey: elasticsearchApiKey
+        apiKey: elasticsearchApiKey,
       });
 
       const dataStreamsToDelete: string[] = [];
 
-      if (dataset === 'hosts') {
-        if (format === 'otel' || format === 'both') {
-          dataStreamsToDelete.push('metrics-hostmetricsreceiver.otel-default');
+      if (dataset === "hosts") {
+        if (format === "otel" || format === "both") {
+          dataStreamsToDelete.push("metrics-hostmetricsreceiver.otel-default");
         }
-        if (format === 'elastic' || format === 'both') {
-          dataStreamsToDelete.push('metrics-system.cpu-default');
-          dataStreamsToDelete.push('metrics-system.load-default');
-          dataStreamsToDelete.push('metrics-system.memory-default');
-          dataStreamsToDelete.push('metrics-system.network-default');
-          dataStreamsToDelete.push('metrics-system.diskio-default');
-          dataStreamsToDelete.push('metrics-system.filesystem-default');
+        if (format === "elastic" || format === "both") {
+          dataStreamsToDelete.push("metrics-system.cpu-default");
+          dataStreamsToDelete.push("metrics-system.load-default");
+          dataStreamsToDelete.push("metrics-system.memory-default");
+          dataStreamsToDelete.push("metrics-system.network-default");
+          dataStreamsToDelete.push("metrics-system.diskio-default");
+          dataStreamsToDelete.push("metrics-system.filesystem-default");
         }
-      } else if (dataset === 'weather') {
-        dataStreamsToDelete.push('fieldsense-station-metrics');
-      } else if (dataset === 'unique-metrics') {
+      } else if (dataset === "weather") {
+        dataStreamsToDelete.push("fieldsense-station-metrics");
+      } else if (dataset === "unique-metrics") {
         // Calculate how many indices we need based on count (500 metrics per index)
         const numIndices = Math.ceil((count || 10) / 500);
         for (let i = 1; i <= numIndices; i++) {
           dataStreamsToDelete.push(`metrics-uniquemetrics${i}.otel-default`);
         }
-      } else if (dataset === 'histograms') {
-        dataStreamsToDelete.push('histograms-samples');
+      } else if (dataset === "histograms") {
+        dataStreamsToDelete.push("histograms-samples");
+      } else if (dataset === "same-metrics") {
+        dataStreamsToDelete.push(...DATA_STREAM_IDS);
+      } else if (dataset === "edge-cases") {
+        dataStreamsToDelete.push(...EDGE_CASE_STREAM_IDS);
       }
 
       console.log(`Purging data streams for dataset '${dataset}'...`);
@@ -53,22 +68,27 @@ async function purgeDataStreams(elasticsearchUrl: string, elasticsearchAuth: str
       for (const dataStream of dataStreamsToDelete) {
         try {
           await client.indices.deleteDataStream({
-            name: dataStream
+            name: dataStream,
           });
           console.log(`✓ Deleted data stream: ${dataStream}`);
         } catch (error: any) {
           if (error.meta?.statusCode === 404) {
-            console.log(`- Data stream not found (already deleted): ${dataStream}`);
+            console.log(
+              `- Data stream not found (already deleted): ${dataStream}`,
+            );
           } else {
-            console.warn(`⚠ Failed to delete data stream ${dataStream}:`, error.message);
+            console.warn(
+              `⚠ Failed to delete data stream ${dataStream}:`,
+              error.message,
+            );
           }
         }
       }
 
-      console.log('Data stream purge completed.');
+      console.log("Data stream purge completed.");
       span.setStatus({ code: 1 });
     } catch (error) {
-      console.error('Error during data stream purge:', error);
+      console.error("Error during data stream purge:", error);
       span.recordException(error as Error);
       span.setStatus({ code: 2, message: (error as Error).message });
       throw error;
@@ -79,54 +99,110 @@ async function purgeDataStreams(elasticsearchUrl: string, elasticsearchAuth: str
 }
 
 async function main() {
-  return tracer.startActiveSpan('main', async (span) => {
+  return tracer.startActiveSpan("main", async (span) => {
     try {
       const program = new Command();
-      
-      program
-        .name('simian-forge')
-        .description('A metric and log generation tool for Elasticsearch')
-        .version('1.0.0');
 
       program
-        .option('--interval <value>', 'Frequency of data generation (e.g., 30s, 5m)', '10s')
-        .option('--backfill <value>', 'How far back to backfill data (e.g., now-1h)', 'now-5m')
-        .option('--count <number>', 'Number of entities to generate', '10')
-        .option('--dataset <name>', 'Name of the dataset', 'hosts')
-        .option('--elasticsearch-url <url>', 'Elasticsearch cluster URL', 'http://localhost:9200')
-        .option('--elasticsearch-auth <auth>', 'Elasticsearch auth in username:password format', 'elastic:changeme')
-        .option('--elasticsearch-api-key <key>', 'Elasticsearch API key for authentication', '')
-        .option('--collector <url>', 'OpenTelemetry collector HTTP endpoint', 'http://localhost:4318')
-        .option('--format <format>', 'Output format: otel, elastic, or both', 'both')
-        .option('--purge', 'Delete existing data streams for the dataset before starting')
-        .option('--no-realtime', 'Skip real-time data generation after backfill completes');
+        .name("simian-forge")
+        .description("A metric and log generation tool for Elasticsearch")
+        .version("1.0.0");
+
+      program
+        .option(
+          "--interval <value>",
+          "Frequency of data generation (e.g., 30s, 5m)",
+          "10s",
+        )
+        .option(
+          "--backfill <value>",
+          "How far back to backfill data (e.g., now-1h)",
+          "now-5m",
+        )
+        .option("--count <number>", "Number of entities to generate", "10")
+        .option("--dataset <name>", "Name of the dataset", "hosts")
+        .option(
+          "--elasticsearch-url <url>",
+          "Elasticsearch cluster URL",
+          "http://localhost:9200",
+        )
+        .option(
+          "--elasticsearch-auth <auth>",
+          "Elasticsearch auth in username:password format",
+          "elastic:changeme",
+        )
+        .option(
+          "--elasticsearch-api-key <key>",
+          "Elasticsearch API key for authentication",
+          "",
+        )
+        .option(
+          "--collector <url>",
+          "OpenTelemetry collector HTTP endpoint",
+          "http://localhost:4318",
+        )
+        .option(
+          "--format <format>",
+          "Output format: otel, elastic, or both",
+          "both",
+        )
+        .option(
+          "--purge",
+          "Delete existing data streams for the dataset before starting",
+        )
+        .option(
+          "--no-realtime",
+          "Skip real-time data generation after backfill completes",
+        );
 
       program.parse();
       const options = program.opts();
 
       // Initialize tracing with collector URL
       await initializeTracing(options.collector);
-      
+
       // Initialize logger with Elasticsearch
-      simianLogger.initializeElasticsearch(options.elasticsearchUrl, options.elasticsearchAuth, options.elasticsearchApiKey);
+      simianLogger.initializeElasticsearch(
+        options.elasticsearchUrl,
+        options.elasticsearchAuth,
+        options.elasticsearchApiKey,
+      );
 
       // Validate dataset
-      if (!['hosts', 'weather', 'unique-metrics', 'histograms'].includes(options.dataset)) {
-        throw new Error(`Unsupported dataset: ${options.dataset}. Supported datasets: 'hosts', 'weather', 'unique-metrics', 'histograms'.`);
+      if (
+        ![
+          "hosts",
+          "weather",
+          "unique-metrics",
+          "histograms",
+          "same-metrics",
+          "edge-cases",
+        ].includes(options.dataset)
+      ) {
+        throw new Error(
+          `Unsupported dataset: ${options.dataset}. Supported datasets: 'hosts', 'weather', 'unique-metrics', 'histograms', 'same-metrics', 'edge-cases'.`,
+        );
       }
 
       // Validate format (only for hosts dataset)
-      if (options.dataset === 'hosts' && !['otel', 'elastic', 'both'].includes(options.format)) {
-        throw new Error(`Invalid format: ${options.format}. Must be 'otel', 'elastic', or 'both'.`);
+      if (
+        options.dataset === "hosts" &&
+        !["otel", "elastic", "both"].includes(options.format)
+      ) {
+        throw new Error(
+          `Invalid format: ${options.format}. Must be 'otel', 'elastic', or 'both'.`,
+        );
       }
 
       // Validate count
       const count = parseInt(options.count, 10);
       if (isNaN(count) || count <= 0) {
-        throw new Error(`Invalid count: ${options.count}. Must be a positive integer.`);
+        throw new Error(
+          `Invalid count: ${options.count}. Must be a positive integer.`,
+        );
       }
 
-      console.log('Starting Simian Forge with options:', {
+      console.log("Starting Simian Forge with options:", {
         interval: options.interval,
         backfill: options.backfill,
         count: count,
@@ -135,18 +211,31 @@ async function main() {
         format: options.format,
         collector: options.collector,
         purge: options.purge,
-        noRealtime: !options.realtime
+        noRealtime: !options.realtime,
       });
 
       // Handle purge if requested
       if (options.purge) {
-        await purgeDataStreams(options.elasticsearchUrl, options.elasticsearchAuth, options.elasticsearchApiKey, options.dataset, options.format, count);
+        await purgeDataStreams(
+          options.elasticsearchUrl,
+          options.elasticsearchAuth,
+          options.elasticsearchApiKey,
+          options.dataset,
+          options.format,
+          count,
+        );
       }
 
       // Create and start the appropriate simulator
-      let simulator: HostSimulator | WeatherSimulator | UniqueMetricsSimulator | HistogramsSimulator;
-      
-      if (options.dataset === 'hosts') {
+      let simulator:
+        | HostSimulator
+        | WeatherSimulator
+        | UniqueMetricsSimulator
+        | HistogramsSimulator
+        | SameMetricsSimulator
+        | EdgeCasesSimulator;
+
+      if (options.dataset === "hosts") {
         simulator = new HostSimulator({
           interval: options.interval,
           backfill: options.backfill,
@@ -154,10 +243,10 @@ async function main() {
           elasticsearchUrl: options.elasticsearchUrl,
           elasticsearchAuth: options.elasticsearchAuth,
           elasticsearchApiKey: options.elasticsearchApiKey,
-          format: options.format as 'otel' | 'elastic' | 'both',
-          noRealtime: !options.realtime
+          format: options.format as "otel" | "elastic" | "both",
+          noRealtime: !options.realtime,
         });
-      } else if (options.dataset === 'weather') {
+      } else if (options.dataset === "weather") {
         simulator = new WeatherSimulator({
           interval: options.interval,
           backfill: options.backfill,
@@ -165,9 +254,9 @@ async function main() {
           elasticsearchUrl: options.elasticsearchUrl,
           elasticsearchAuth: options.elasticsearchAuth,
           elasticsearchApiKey: options.elasticsearchApiKey,
-          noRealtime: !options.realtime
+          noRealtime: !options.realtime,
         });
-      } else if (options.dataset === 'unique-metrics') {
+      } else if (options.dataset === "unique-metrics") {
         simulator = new UniqueMetricsSimulator({
           interval: options.interval,
           backfill: options.backfill,
@@ -175,9 +264,9 @@ async function main() {
           elasticsearchUrl: options.elasticsearchUrl,
           elasticsearchAuth: options.elasticsearchAuth,
           elasticsearchApiKey: options.elasticsearchApiKey,
-          noRealtime: !options.realtime
+          noRealtime: !options.realtime,
         });
-      } else if (options.dataset === 'histograms') {
+      } else if (options.dataset === "histograms") {
         simulator = new HistogramsSimulator({
           interval: options.interval,
           backfill: options.backfill,
@@ -185,33 +274,53 @@ async function main() {
           elasticsearchUrl: options.elasticsearchUrl,
           elasticsearchAuth: options.elasticsearchAuth,
           elasticsearchApiKey: options.elasticsearchApiKey,
-          noRealtime: !options.realtime
+          noRealtime: !options.realtime,
+        });
+      } else if (options.dataset === "same-metrics") {
+        simulator = new SameMetricsSimulator({
+          interval: options.interval,
+          backfill: options.backfill,
+          count: count,
+          elasticsearchUrl: options.elasticsearchUrl,
+          elasticsearchAuth: options.elasticsearchAuth,
+          elasticsearchApiKey: options.elasticsearchApiKey,
+          noRealtime: !options.realtime,
+        });
+      } else if (options.dataset === "edge-cases") {
+        simulator = new EdgeCasesSimulator({
+          interval: options.interval,
+          backfill: options.backfill,
+          count: count,
+          elasticsearchUrl: options.elasticsearchUrl,
+          elasticsearchAuth: options.elasticsearchAuth,
+          elasticsearchApiKey: options.elasticsearchApiKey,
+          noRealtime: !options.realtime,
         });
       } else {
         throw new Error(`Unsupported dataset: ${options.dataset}`);
       }
 
       const shouldExit = await simulator.start();
-      
+
       if (shouldExit) {
         // Backfill completed with --no-realtime, clean up and exit
-        console.log('Cleaning up and exiting...');
+        console.log("Cleaning up and exiting...");
         await simianLogger.shutdown();
         span.setStatus({ code: 1 });
         process.exit(0);
       } else {
         // Real-time mode started, set up cleanup handlers
-        process.on('SIGINT', async () => {
-          console.log('Shutting down...');
+        process.on("SIGINT", async () => {
+          console.log("Shutting down...");
           simulator.stop();
           await simianLogger.shutdown();
           process.exit(0);
         });
-        
+
         span.setStatus({ code: 1 }); // OK
       }
     } catch (error) {
-      console.error('Error:', error);
+      console.error("Error:", error);
       span.recordException(error as Error);
       span.setStatus({ code: 2, message: (error as Error).message }); // ERROR
       process.exit(1);

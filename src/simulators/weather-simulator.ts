@@ -81,7 +81,7 @@ export class WeatherSimulator extends BaseSimulator<WeatherStationConfig, Weathe
         try {
           await this.elasticsearchClient.indices.putIndexTemplate({
             name: 'fieldsense-weather-stations',
-            body: indexTemplate
+            ...indexTemplate
           });
           console.log('Created index template: fieldsense-weather-stations');
         } catch (error) {
